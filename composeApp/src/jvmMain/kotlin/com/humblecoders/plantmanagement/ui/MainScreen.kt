@@ -23,7 +23,7 @@ enum class MenuItem {
     DASHBOARD,
     PRODUCTION,
     INVENTORY,
-    PURCHASE,
+    PURCHASE,  // Add this
     SALE,
     PENDING_BILLS,
     CUSTOMERS,
@@ -44,7 +44,9 @@ data class MenuItemData(
 @Composable
 fun MainScreen(
     authViewModel: AuthViewModel,
-    entityViewModel: com.humblecoders.plantmanagement.viewmodels.EntityViewModel
+    entityViewModel: com.humblecoders.plantmanagement.viewmodels.EntityViewModel,
+    purchaseViewModel: com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel  // Add this parameter
+
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
     val authState = authViewModel.authState
@@ -73,6 +75,7 @@ fun MainScreen(
             when (selectedMenuItem) {
                 MenuItem.DASHBOARD -> DashboardContent()
                 MenuItem.CUSTOMERS -> EntityScreen(entityViewModel)
+                MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel)  // Add this
                 MenuItem.PROFILE -> ProfileContent(authViewModel)
                 else -> PlaceholderContent(selectedMenuItem.name)
             }

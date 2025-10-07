@@ -13,9 +13,11 @@ import com.google.firebase.cloud.FirestoreClient
 import com.humblecoders.plantmanagement.repositories.AuthRepository
 import com.humblecoders.plantmanagement.repositories.EntityRepository
 import com.humblecoders.plantmanagement.repositories.FirebaseAuthRestClient
+import com.humblecoders.plantmanagement.repositories.PurchaseRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
+import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import java.io.ByteArrayInputStream
 
 fun main() = application {
@@ -61,6 +63,7 @@ fun main() = application {
 
     // Wait for auth to be ready and get userId
     var entityViewModel: EntityViewModel? = null
+    var purchaseViewModel: PurchaseViewModel? = null
 
     val windowState = rememberWindowState(width = 1400.dp, height = 900.dp)
 
@@ -78,18 +81,23 @@ fun main() = application {
         if (currentUser != null && entityViewModel == null) {
             val entityRepository = EntityRepository(firestoreNonNull, currentUser.uid, appId)
             entityViewModel = EntityViewModel(entityRepository)
+
+            val purchaseRepository = PurchaseRepository(firestoreNonNull, currentUser.uid, appId)
+            purchaseViewModel = PurchaseViewModel(purchaseRepository)
         }
 
-        if (entityViewModel != null) {
+        if (entityViewModel != null && purchaseViewModel != null) {
             AppNavigation(
                 authViewModel = authViewModel,
-                entityViewModel = entityViewModel!!
+                entityViewModel = entityViewModel!!,
+                purchaseViewModel = purchaseViewModel!!
             )
         } else {
             // Show auth screens until user is logged in
             AppNavigation(
                 authViewModel = authViewModel,
-                entityViewModel = EntityViewModel(EntityRepository(firestoreNonNull, "", appId)) // Temporary
+                entityViewModel = EntityViewModel(EntityRepository(firestoreNonNull, "", appId)),
+                purchaseViewModel = PurchaseViewModel(PurchaseRepository(firestoreNonNull, "", appId))
             )
         }
     }

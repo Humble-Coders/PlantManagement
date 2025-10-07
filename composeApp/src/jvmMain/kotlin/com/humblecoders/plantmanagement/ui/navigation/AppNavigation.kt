@@ -5,6 +5,7 @@ import com.humblecoders.plantmanagement.ui.LoginScreen
 import com.humblecoders.plantmanagement.ui.MainScreen
 import com.humblecoders.plantmanagement.ui.SignUpScreen
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
+import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 
 enum class Screen {
     LOGIN,
@@ -15,7 +16,9 @@ enum class Screen {
 @Composable
 fun AppNavigation(
     authViewModel: AuthViewModel,
-    entityViewModel: com.humblecoders.plantmanagement.viewmodels.EntityViewModel
+    entityViewModel: com.humblecoders.plantmanagement.viewmodels.EntityViewModel,
+    purchaseViewModel: PurchaseViewModel
+
 ) {
     val authState = authViewModel.authState
     var currentScreen by remember { mutableStateOf(Screen.LOGIN) }
@@ -47,7 +50,8 @@ fun AppNavigation(
         Screen.MAIN -> {
             MainScreen(
                 authViewModel = authViewModel,
-                entityViewModel = entityViewModel
+                entityViewModel = entityViewModel,
+                purchaseViewModel = purchaseViewModel
             )
         }
     }
