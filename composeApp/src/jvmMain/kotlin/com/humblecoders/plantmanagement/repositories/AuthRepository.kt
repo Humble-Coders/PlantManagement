@@ -5,6 +5,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserRecord
 import com.humblecoders.plantmanagement.data.User
 import com.humblecoders.plantmanagement.data.UserRole
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 class AuthRepository(
@@ -17,29 +19,30 @@ class AuthRepository(
      * Sign up a new user with email and password
      * Uses REST API for authentication and Admin SDK for user management
      */
-    suspend fun signUp(email: String, password: String): Result<User> {
-        return try {
+    suspend fun signUp(email: String, password: String): Result<User> = withContext(Dispatchers.IO) {
+        return@withContext try {
             // Sign up via REST API
             val authResult = restClient.signUpWithEmailAndPassword(email, password)
 
             if (authResult.isFailure) {
-                return Result.failure(authResult.exceptionOrNull() ?: Exception("Sign up failed"))
+                return@withContext Result.failure(authResult.exceptionOrNull() ?: Exception("Sign up failed"))
             }
 
-            val authResponse = authResult.getOrNull() ?: return Result.failure(Exception("Sign up failed"))
+            val authResponse = authResult.getOrNull() ?: return@withContext Result.failure(Exception("Sign up failed"))
             val uid = authResponse.localId
 
-            // Create user document in Firestore with default USER role
-            val userData = mapOf(
-                "email" to email,
-                "role" to "user",
-                "createdAt" to com.google.cloud.Timestamp.now()
-            )
-
-            firestore.collection("users")
-                .document(uid)
-                .set(userData)
-                .get(10, TimeUnit.SECONDS)
+            // Use transaction to ensure atomic user creation in Firestore
+            firestore.runTransaction { transaction ->
+                val userData = mapOf(
+                    "email" to email,
+                    "role" to "user",
+                    "createdAt" to com.google.cloud.Timestamp.now()
+                )
+                
+                val userRef = firestore.collection("users").document(uid)
+                transaction.set(userRef, userData)
+                null
+            }.get(10, TimeUnit.SECONDS)
 
             val user = User(
                 uid = uid,
@@ -57,16 +60,16 @@ class AuthRepository(
      * Sign in with email and password
      * Uses REST API for password verification
      */
-    suspend fun signIn(email: String, password: String): Result<User> {
-        return try {
+    suspend fun signIn(email: String, password: String): Result<User> = withContext(Dispatchers.IO) {
+        return@withContext try {
             // Sign in via REST API (this verifies the password)
             val authResult = restClient.signInWithEmailAndPassword(email, password)
 
             if (authResult.isFailure) {
-                return Result.failure(authResult.exceptionOrNull() ?: Exception("Sign in failed"))
+                return@withContext Result.failure(authResult.exceptionOrNull() ?: Exception("Sign in failed"))
             }
 
-            val authResponse = authResult.getOrNull() ?: return Result.failure(Exception("Sign in failed"))
+            val authResponse = authResult.getOrNull() ?: return@withContext Result.failure(Exception("Sign in failed"))
             val uid = authResponse.localId
 
             // Fetch user role from Firestore
@@ -76,7 +79,7 @@ class AuthRepository(
                 .get(10, TimeUnit.SECONDS)
 
             if (!userDoc.exists()) {
-                return Result.failure(Exception("User data not found"))
+                return@withContext Result.failure(Exception("User data not found"))
             }
 
             val roleString = userDoc.getString("role") ?: "user"
@@ -115,16 +118,16 @@ class AuthRepository(
     /**
      * Get user by UID (for checking existing sessions)
      */
-    suspend fun getUserByUid(uid: String): User? {
-        return try {
+    suspend fun getUserByUid(uid: String): User? = withContext(Dispatchers.IO) {
+        return@withContext try {
             val userDoc = firestore.collection("users")
                 .document(uid)
                 .get()
                 .get(10, TimeUnit.SECONDS)
 
-            if (!userDoc.exists()) return null
+            if (!userDoc.exists()) return@withContext null
 
-            val email = userDoc.getString("email") ?: return null
+            val email = userDoc.getString("email") ?: return@withContext null
             val roleString = userDoc.getString("role") ?: "user"
             val role = when (roleString.lowercase()) {
                 "admin" -> UserRole.ADMIN

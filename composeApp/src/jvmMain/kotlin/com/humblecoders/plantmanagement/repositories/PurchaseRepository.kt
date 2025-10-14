@@ -5,6 +5,8 @@ import com.humblecoders.plantmanagement.data.Purchase
 import com.humblecoders.plantmanagement.data.PurchaseItem
 import com.humblecoders.plantmanagement.data.PaymentStatus
 import com.humblecoders.plantmanagement.data.TransactionStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 class PurchaseRepository(
@@ -17,8 +19,8 @@ class PurchaseRepository(
     private fun getEntitiesCollection() = firestore.collection("customers")
     private fun getInventoryCollection() = firestore.collection("inventory")
 
-    suspend fun addPurchase(purchase: Purchase): Result<String> {
-        return try {
+    suspend fun addPurchase(purchase: Purchase): Result<String> = withContext(Dispatchers.IO) {
+        return@withContext try {
             val itemsData = purchase.items.map { item ->
                 mapOf(
                     "inventoryItemId" to item.inventoryItemId,
@@ -43,6 +45,7 @@ class PurchaseRepository(
                 "paymentStatus" to purchase.paymentStatus.name,
                 "amountPaid" to purchase.amountPaid,
                 "notes" to purchase.notes,
+                "imageUrl" to purchase.imageUrl,
                 "status" to purchase.status.name,
                 "createdAt" to com.google.cloud.Timestamp.now()
             )
@@ -55,13 +58,18 @@ class PurchaseRepository(
                 
                 // Read entity balance first
                 val entityRef = getEntitiesCollection().document(purchase.customerId)
-                val entityDoc = transaction.get(entityRef).get()
+                val entityDocFuture = transaction.get(entityRef)
                 
-                // Read all inventory items first
-                val inventoryRefsAndDocs = purchase.items.map { item ->
+                // Read all inventory items first (collect futures)
+                val inventoryFutures = purchase.items.map { item ->
                     val inventoryRef = getInventoryCollection().document(item.inventoryItemId)
-                    val inventoryDoc = transaction.get(inventoryRef).get()
-                    Pair(inventoryRef, inventoryDoc)
+                    Pair(inventoryRef, transaction.get(inventoryRef))
+                }
+                
+                // Now resolve all futures together
+                val entityDoc = entityDocFuture.get()
+                val inventoryRefsAndDocs = inventoryFutures.map { (ref, future) ->
+                    Pair(ref, future.get())
                 }
                 
                 // Now perform all writes
@@ -90,7 +98,7 @@ class PurchaseRepository(
                 }
                 
                 null
-            }.get(10, TimeUnit.SECONDS)
+            }.get(15, TimeUnit.SECONDS)
 
             Result.success(docRef.id)
         } catch (e: Exception) {
@@ -98,8 +106,8 @@ class PurchaseRepository(
         }
     }
 
-    suspend fun updatePurchase(purchaseId: String, purchase: Purchase): Result<Unit> {
-        return try {
+    suspend fun updatePurchase(purchaseId: String, purchase: Purchase): Result<Unit> = withContext(Dispatchers.IO) {
+        return@withContext try {
             val itemsData = purchase.items.map { item ->
                 mapOf(
                     "inventoryItemId" to item.inventoryItemId,
@@ -122,7 +130,8 @@ class PurchaseRepository(
                 "grandTotal" to purchase.grandTotal,
                 "paymentStatus" to purchase.paymentStatus.name,
                 "amountPaid" to purchase.amountPaid,
-                "notes" to purchase.notes
+                "notes" to purchase.notes,
+                "imageUrl" to purchase.imageUrl
             )
 
             // Use transaction to update purchase and adjust entity balance and inventory
@@ -145,24 +154,31 @@ class PurchaseRepository(
                     
                     // Read entity balance
                     val entityRef = getEntitiesCollection().document(purchase.customerId)
-                    val entityDoc = transaction.get(entityRef).get()
+                    val entityDocFuture = transaction.get(entityRef)
                     
-                    // Read all old inventory items
-                    val oldInventoryRefsAndDocs = oldItemsList.mapNotNull { itemMap ->
+                    // Read all old inventory items (collect futures)
+                    val oldInventoryFutures = oldItemsList.mapNotNull { itemMap ->
                         val inventoryItemId = itemMap["inventoryItemId"] as? String ?: ""
                         if (inventoryItemId.isNotBlank()) {
                             val inventoryRef = getInventoryCollection().document(inventoryItemId)
-                            val inventoryDoc = transaction.get(inventoryRef).get()
                             val oldQuantity = (itemMap["quantity"] as? Number)?.toDouble() ?: 0.0
-                            Triple(inventoryRef, inventoryDoc, oldQuantity)
+                            Triple(inventoryRef, transaction.get(inventoryRef), oldQuantity)
                         } else null
                     }
                     
-                    // Read all new inventory items
-                    val newInventoryRefsAndDocs = purchase.items.map { item ->
+                    // Read all new inventory items (collect futures)
+                    val newInventoryFutures = purchase.items.map { item ->
                         val inventoryRef = getInventoryCollection().document(item.inventoryItemId)
-                        val inventoryDoc = transaction.get(inventoryRef).get()
-                        Pair(inventoryRef, inventoryDoc)
+                        Pair(inventoryRef, transaction.get(inventoryRef))
+                    }
+                    
+                    // Resolve all futures
+                    val entityDoc = entityDocFuture.get()
+                    val oldInventoryRefsAndDocs = oldInventoryFutures.map { (ref, future, qty) ->
+                        Triple(ref, future.get(), qty)
+                    }
+                    val newInventoryRefsAndDocs = newInventoryFutures.map { (ref, future) ->
+                        Pair(ref, future.get())
                     }
                     
                     // Now perform all writes
@@ -202,7 +218,7 @@ class PurchaseRepository(
                 }
                 
                 null
-            }.get(10, TimeUnit.SECONDS)
+            }.get(15, TimeUnit.SECONDS)
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -210,8 +226,8 @@ class PurchaseRepository(
         }
     }
 
-    suspend fun deletePurchase(purchaseId: String): Result<Unit> {
-        return try {
+    suspend fun deletePurchase(purchaseId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        return@withContext try {
             // Use transaction to delete purchase and reverse entity balance and inventory changes
             firestore.runTransaction { transaction ->
                 // IMPORTANT: All reads must come before any writes in Firestore transactions
@@ -230,20 +246,25 @@ class PurchaseRepository(
                     // Get items
                     val itemsList = purchaseDoc.get("items") as? List<Map<String, Any>> ?: emptyList()
                     
-                    // Read entity balance
+                    // Read entity balance (collect future)
                     val entityRef = if (customerId.isNotBlank()) getEntitiesCollection().document(customerId) else null
-                    val entityDoc = entityRef?.let { transaction.get(it).get() }
+                    val entityDocFuture = entityRef?.let { transaction.get(it) }
                     
-                    // Read all inventory items
-                    val inventoryRefsAndDocs = itemsList.mapNotNull { itemMap ->
+                    // Read all inventory items (collect futures)
+                    val inventoryFutures = itemsList.mapNotNull { itemMap ->
                         val inventoryItemId = itemMap["inventoryItemId"] as? String ?: ""
                         val quantity = (itemMap["quantity"] as? Number)?.toDouble() ?: 0.0
                         
                         if (inventoryItemId.isNotBlank()) {
                             val inventoryRef = getInventoryCollection().document(inventoryItemId)
-                            val inventoryDoc = transaction.get(inventoryRef).get()
-                            Triple(inventoryRef, inventoryDoc, quantity)
+                            Triple(inventoryRef, transaction.get(inventoryRef), quantity)
                         } else null
+                    }
+                    
+                    // Resolve futures
+                    val entityDoc = entityDocFuture?.get()
+                    val inventoryRefsAndDocs = inventoryFutures.map { (ref, future, qty) ->
+                        Triple(ref, future.get(), qty)
                     }
                     
                     // Now perform all writes
@@ -269,7 +290,7 @@ class PurchaseRepository(
                 }
                 
                 null
-            }.get(10, TimeUnit.SECONDS)
+            }.get(15, TimeUnit.SECONDS)
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -277,8 +298,8 @@ class PurchaseRepository(
         }
     }
 
-    suspend fun reversePurchase(purchaseId: String, reason: String): Result<Unit> {
-        return try {
+    suspend fun reversePurchase(purchaseId: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
+        return@withContext try {
             val updateData = mapOf(
                 "status" to TransactionStatus.REVERSED.name,
                 "reversedAt" to com.google.cloud.Timestamp.now(),
@@ -288,7 +309,7 @@ class PurchaseRepository(
             getPurchasesCollection()
                 .document(purchaseId)
                 .update(updateData)
-                .get(10, TimeUnit.SECONDS)
+                .get(15, TimeUnit.SECONDS)
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -341,6 +362,7 @@ class PurchaseRepository(
                                 ),
                                 amountPaid = doc.getDouble("amountPaid") ?: 0.0,
                                 notes = doc.getString("notes") ?: "",
+                                imageUrl = doc.getString("imageUrl") ?: "",
                                 status = TransactionStatus.valueOf(
                                     doc.getString("status") ?: "APPROVED"
                                 ),

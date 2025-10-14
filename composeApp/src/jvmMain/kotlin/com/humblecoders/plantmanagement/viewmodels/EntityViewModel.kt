@@ -12,6 +12,9 @@ import kotlinx.coroutines.launch
 data class EntityState(
     val entities: List<Entity> = emptyList(),
     val isLoading: Boolean = false,
+    val isAdding: Boolean = false,
+    val isUpdating: Boolean = false,
+    val isDeleting: Boolean = false,
     val error: String? = null,
     val successMessage: String? = null,
     val searchQuery: String = "",
@@ -80,18 +83,20 @@ class EntityViewModel(
         }
 
         viewModelScope.launch {
-            entityState = entityState.copy(isLoading = true, error = null)
+            entityState = entityState.copy(isAdding = true, isLoading = true, error = null)
 
             val result = entityRepository.addEntity(entity)
 
             entityState = if (result.isSuccess) {
                 entityState.copy(
+                    isAdding = false,
                     isLoading = false,
                     successMessage = "Entity added successfully!",
                     error = null
                 )
             } else {
                 entityState.copy(
+                    isAdding = false,
                     isLoading = false,
                     error = result.exceptionOrNull()?.message ?: "Failed to add entity"
                 )
@@ -134,18 +139,20 @@ class EntityViewModel(
         }
 
         viewModelScope.launch {
-            entityState = entityState.copy(isLoading = true, error = null)
+            entityState = entityState.copy(isUpdating = true, isLoading = true, error = null)
 
             val result = entityRepository.updateEntity(entityId, entity)
 
             entityState = if (result.isSuccess) {
                 entityState.copy(
+                    isUpdating = false,
                     isLoading = false,
                     successMessage = "Entity updated successfully!",
                     error = null
                 )
             } else {
                 entityState.copy(
+                    isUpdating = false,
                     isLoading = false,
                     error = result.exceptionOrNull()?.message ?: "Failed to update entity"
                 )
@@ -158,18 +165,20 @@ class EntityViewModel(
      */
     fun deleteEntity(entityId: String) {
         viewModelScope.launch {
-            entityState = entityState.copy(isLoading = true, error = null)
+            entityState = entityState.copy(isDeleting = true, isLoading = true, error = null)
 
             val result = entityRepository.deleteEntity(entityId)
 
             entityState = if (result.isSuccess) {
                 entityState.copy(
+                    isDeleting = false,
                     isLoading = false,
                     successMessage = "Entity deleted successfully!",
                     error = null
                 )
             } else {
                 entityState.copy(
+                    isDeleting = false,
                     isLoading = false,
                     error = result.exceptionOrNull()?.message ?: "Failed to delete entity"
                 )

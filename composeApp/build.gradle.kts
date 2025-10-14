@@ -11,6 +11,7 @@ plugins {
 
 kotlin {
     jvm()
+    
     jvmToolchain(11)
     
     sourceSets {
@@ -31,7 +32,8 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.firebase.admin)
-            implementation("com.google.auth:google-auth-library-oauth2-http:1.19.0") // Add this
+            implementation("com.google.auth:google-auth-library-oauth2-http:1.19.0")
+            implementation("com.google.cloud:google-cloud-storage:2.30.1")
 
             // Ktor for REST API calls
             implementation("io.ktor:ktor-client-core:2.3.7")
@@ -45,10 +47,20 @@ kotlin {
             // Material Icons
             implementation(compose.materialIconsExtended)
 
+            // PDF Generation
+            implementation("com.openhtmltopdf:openhtmltopdf-core:1.0.10")
+            implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
+
         }
     }
 }
 
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+}
 
 compose.desktop {
     application {

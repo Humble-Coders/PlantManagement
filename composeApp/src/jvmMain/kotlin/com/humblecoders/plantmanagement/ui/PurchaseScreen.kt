@@ -2,12 +2,15 @@ package com.humblecoders.plantmanagement.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import com.humblecoders.plantmanagement.data.UserRole
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,12 +30,23 @@ import com.humblecoders.plantmanagement.viewmodels.SortDirection
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import com.humblecoders.plantmanagement.ui.components.DatePicker
+import com.humblecoders.plantmanagement.services.FirebaseStorageService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import java.io.ByteArrayOutputStream
+import java.net.URL
+import javax.imageio.ImageIO
+import java.awt.image.BufferedImage
 
 @Composable
 fun PurchaseScreen(
     purchaseViewModel: PurchaseViewModel,
     entityViewModel: EntityViewModel,
-    inventoryViewModel: InventoryViewModel
+    inventoryViewModel: InventoryViewModel,
+    userRole: UserRole? = null
 ) {
     val purchaseState = purchaseViewModel.purchaseState
     val entityState = entityViewModel.entityState
@@ -42,6 +56,12 @@ fun PurchaseScreen(
     var purchaseToEdit by remember { mutableStateOf<Purchase?>(null) }
     var showViewDialog by remember { mutableStateOf(false) }
     var purchaseToView by remember { mutableStateOf<Purchase?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var purchaseToDelete by remember { mutableStateOf<Purchase?>(null) }
+    var showCashOutDialog by remember { mutableStateOf(false) }
+    var showCashOutHistoryDialog by remember { mutableStateOf(false) }
+    
+    val isAdmin = userRole == UserRole.ADMIN
 
     LaunchedEffect(purchaseState.successMessage, purchaseState.error) {
         if (purchaseState.successMessage != null || purchaseState.error != null) {
@@ -50,11 +70,12 @@ fun PurchaseScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -115,13 +136,57 @@ fun PurchaseScreen(
                         color = Color.White
                     )
 
-                    Button(
-                        onClick = { showAddDialog = true },
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF06B6D4)
-                        )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Add Purchase", color = Color(0xFF111827))
+                        Button(
+                            onClick = { showCashOutDialog = true },
+                            enabled = !purchaseState.isLoading,
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = Color(0xFF10B981),
+                                disabledBackgroundColor = Color(0xFF9CA3AF)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.AccountBalance,
+                                contentDescription = "Cash Out",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Cash Out", color = Color.White)
+                        }
+                        
+                        OutlinedButton(
+                            onClick = { showCashOutHistoryDialog = true },
+                            enabled = !purchaseState.isLoading,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF10B981)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.History,
+                                contentDescription = "Cash Out History",
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Cash Out History", color = Color(0xFF10B981))
+                        }
+                        
+                        Button(
+                            onClick = { showAddDialog = true },
+                            enabled = !purchaseState.isAdding && !purchaseState.isLoading,
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = Color(0xFF06B6D4),
+                                disabledBackgroundColor = Color(0xFF9CA3AF)
+                            )
+                        ) {
+                            Text("Add Purchase", color = Color(0xFF111827))
+                        }
                     }
                 }
             }
@@ -247,12 +312,56 @@ fun PurchaseScreen(
                         purchaseToEdit = it
                         showEditDialog = true
                     },
-                    onDeleteClick = { purchaseViewModel.deletePurchase(it.id) },
+                    onDeleteClick = {
+                        purchaseToDelete = it
+                        showDeleteConfirmDialog = true
+                    },
                     onViewClick = {
                         purchaseToView = it
                         showViewDialog = true
-                    }
+                    },
+                    isAdmin = isAdmin
                 )
+            }
+        }
+        }
+
+        // Loading indicator overlay
+        if (purchaseState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    backgroundColor = Color(0xFF1F2937),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            color = Color(0xFF06B6D4),
+                            strokeWidth = 3.dp
+                        )
+                        Text(
+                            text = when {
+                                purchaseState.isAdding -> "Adding purchase..."
+                                purchaseState.isUpdating -> "Updating purchase..."
+                                purchaseState.isDeleting -> "Deleting purchase..."
+                                else -> "Processing..."
+                            },
+                            color = Color(0xFFF9FAFB),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
     }
@@ -295,6 +404,39 @@ fun PurchaseScreen(
             }
         )
     }
+    
+    // Delete Confirmation Dialog
+    if (showDeleteConfirmDialog && purchaseToDelete != null) {
+        DeleteConfirmationDialog(
+            itemName = "Purchase from ${purchaseToDelete!!.firmName} on ${purchaseToDelete!!.purchaseDate}",
+            itemType = "purchase",
+            onConfirm = {
+                purchaseViewModel.deletePurchase(purchaseToDelete!!.id)
+                showDeleteConfirmDialog = false
+                purchaseToDelete = null
+            },
+            onDismiss = {
+                showDeleteConfirmDialog = false
+                purchaseToDelete = null
+            }
+        )
+    }
+    
+    // Cash Out Dialog
+    if (showCashOutDialog) {
+        com.humblecoders.plantmanagement.ui.components.CashOutDialog(
+            purchaseViewModel = purchaseViewModel,
+            onDismiss = { showCashOutDialog = false }
+        )
+    }
+    
+    // Cash Out History Dialog
+    if (showCashOutHistoryDialog) {
+        com.humblecoders.plantmanagement.ui.components.CashOutHistoryDialog(
+            purchaseViewModel = purchaseViewModel,
+            onDismiss = { showCashOutHistoryDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -302,7 +444,8 @@ fun PurchaseTable(
     purchases: List<Purchase>,
     onEditClick: (Purchase) -> Unit,
     onDeleteClick: (Purchase) -> Unit,
-    onViewClick: (Purchase) -> Unit
+    onViewClick: (Purchase) -> Unit,
+    isAdmin: Boolean
 ) {
     Column {
         Row(
@@ -371,11 +514,26 @@ fun PurchaseTable(
                     TextButton(onClick = { onViewClick(purchase) }) {
                         Text("View", color = Color(0xFF3B82F6), fontSize = 12.sp)
                     }
-                    TextButton(onClick = { onEditClick(purchase) }) {
-                        Text("Edit", color = Color(0xFF10B981), fontSize = 12.sp)
-                    }
-                    TextButton(onClick = { onDeleteClick(purchase) }) {
-                        Text("Delete", color = Color(0xFFEF4444), fontSize = 12.sp)
+                    if (isAdmin) {
+                        TextButton(onClick = { onEditClick(purchase) }) {
+                            Text("Edit", color = Color(0xFF10B981), fontSize = 12.sp)
+                        }
+                        TextButton(onClick = { onDeleteClick(purchase) }) {
+                            Text("Delete", color = Color(0xFFEF4444), fontSize = 12.sp)
+                        }
+                    } else {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Locked",
+                                tint = Color(0xFF6B7280),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text("Locked", color = Color(0xFF6B7280), fontSize = 11.sp)
+                        }
                     }
                 }
             }
@@ -406,6 +564,10 @@ fun AddPurchaseDialog(
     var amountPaid by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var purchaseItems by remember { mutableStateOf(listOf<PurchaseItem>()) }
+    var selectedImageFile by remember { mutableStateOf<java.io.File?>(null) }
+    var isUploadingImage by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val storageService = remember { FirebaseStorageService(com.humblecoders.plantmanagement.FirebaseCredentialsHolder.credentials) }
 
     val totalAmount = purchaseItems.sumOf { it.totalPrice }
     val gstAmount = totalAmount * (gstRate / 100.0)
@@ -413,305 +575,463 @@ fun AddPurchaseDialog(
     val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
     val pendingAmount = grandTotal - paidAmount
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        backgroundColor = Color(0xFF1F2937),
-        title = {
-            Text("Log New Purchase", color = Color(0xFFF9FAFB), fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Box(
-                modifier = Modifier
-                    .width(700.dp)
-                    .height(750.dp)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .width(750.dp)
+                .height(700.dp),
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            elevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(end = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                // Entity Dropdown
-                var entityExpanded by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { entityExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.Black
-                        )
-                    ) {
-                        Text(
-                            text = if (selectedEntityId.isBlank()) "Select Entity"
-                            else customers.find { it.id == selectedEntityId }?.firmName ?: "Select Entity",
-                            modifier = Modifier.weight(1f)
-                        )
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                    }
-
-                    DropdownMenu(
-                        expanded = entityExpanded,
-                        onDismissRequest = { entityExpanded = false }
-                    ) {
-                        customers.forEach { entity ->
-                            DropdownMenuItem(onClick = {
-                                selectedEntityId = entity.id
-                                entityExpanded = false
-                            }) {
-                                Text(entity.firmName)
-                            }
-                        }
-                    }
-                }
-
-                // Purchase Date
-                DatePicker(
-                    selectedDate = try { LocalDate.parse(purchaseDate) } catch (e: Exception) { LocalDate.now() },
-                    onDateSelected = { date -> 
-                        purchaseDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    },
-                    label = "Purchase Date",
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Divider(color = Color(0xFF374151))
-
-                // Items Section
+                // Header
                 Row(
-                        modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Purchase Items",
-                        fontSize = 16.sp,
+                        "Log New Purchase",
+                        color = Color(0xFFF9FAFB),
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF06B6D4)
+                        fontSize = 20.sp
                     )
-                    Button(
-                        onClick = {
-                            purchaseItems = purchaseItems + PurchaseItem()
-                        },
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981))
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Item", tint = Color.White)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Item", color = Color.White, fontSize = 12.sp)
-                    }
-                }
-
-                // Items List
-                if (purchaseItems.isEmpty()) {
-                    Card(
-                        backgroundColor = Color(0xFF111827),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            "No items added. Click 'Add Item' to start.",
-                            color = Color(0xFF9CA3AF),
-                            modifier = Modifier.padding(16.dp),
-                            fontSize = 12.sp
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF)
                         )
                     }
                 }
 
-                purchaseItems.forEachIndexed { index, item ->
-                    PurchaseItemCard(
-                        item = item,
-                        index = index,
-                        inventoryItems = inventoryItems,
-                        onItemChanged = { updatedItem ->
-                            purchaseItems = purchaseItems.toMutableList().apply {
-                                set(index, updatedItem)
+                // Scrollable Content
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+                ) {
+                    // Entity Dropdown
+                    item {
+                        var entityExpanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { entityExpanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.Black
+                                )
+                            ) {
+                                Text(
+                                    text = if (selectedEntityId.isBlank()) "Select Entity"
+                                    else customers.find { it.id == selectedEntityId }?.firmName ?: "Select Entity",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                             }
-                        },
-                        onRemove = {
-                            purchaseItems = purchaseItems.toMutableList().apply {
-                                removeAt(index)
+
+                            DropdownMenu(
+                                expanded = entityExpanded,
+                                onDismissRequest = { entityExpanded = false }
+                            ) {
+                                customers.forEach { entity ->
+                                    DropdownMenuItem(onClick = {
+                                        selectedEntityId = entity.id
+                                        entityExpanded = false
+                                    }) {
+                                        Text(entity.firmName)
+                                    }
+                                }
                             }
                         }
-                    )
-                }
+                    }
 
-                Divider(color = Color(0xFF374151))
+                    // Purchase Date
+                    item {
+                        OutlinedTextField(
+                            value = purchaseDate,
+                            onValueChange = { purchaseDate = it },
+                            label = { Text("Purchase Date (YYYY-MM-DD)", color = Color(0xFF9CA3AF)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                textColor = Color(0xFFF9FAFB),
+                                backgroundColor = Color(0xFF111827),
+                                focusedBorderColor = Color(0xFF06B6D4),
+                                unfocusedBorderColor = Color(0xFF374151),
+                                cursorColor = Color(0xFF06B6D4)
+                            ),
+                            singleLine = true
+                        )
+                    }
 
-                // Total Amount Display
-                Card(
-                    backgroundColor = Color(0xFF111827),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Divider
+                    item {
+                        Divider(color = Color(0xFF374151))
+                    }
+
+                    // Items Section Header
+                    item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Total Amount:", color = Color(0xFF9CA3AF), fontSize = 14.sp)
-                            Text("₹ ${String.format("%.2f", totalAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                            Text(
+                                text = "Purchase Items",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF06B6D4)
+                            )
+                            Button(
+                                onClick = {
+                                    purchaseItems = purchaseItems + PurchaseItem()
+                                },
+                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981))
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Add Item", tint = Color.White)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add Item", color = Color.White, fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    // Empty state or items list
+                    if (purchaseItems.isEmpty()) {
+                        item {
+                            Card(
+                                backgroundColor = Color(0xFF111827),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "No items added. Click 'Add Item' to start.",
+                                    color = Color(0xFF9CA3AF),
+                                    modifier = Modifier.padding(16.dp),
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    } else {
+                        items(purchaseItems.size) { index ->
+                            PurchaseItemCard(
+                                item = purchaseItems[index],
+                                index = index,
+                                inventoryItems = inventoryItems,
+                                onItemChanged = { updatedItem ->
+                                    purchaseItems = purchaseItems.toMutableList().apply {
+                                        set(index, updatedItem)
+                                    }
+                                },
+                                onRemove = {
+                                    purchaseItems = purchaseItems.toMutableList().apply {
+                                        removeAt(index)
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    // Divider
+                    item {
+                        Divider(color = Color(0xFF374151))
+                    }
+
+                    // Total Amount Display
+                    item {
+                        Card(
+                            backgroundColor = Color(0xFF111827),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Total Amount:", color = Color(0xFF9CA3AF), fontSize = 14.sp)
+                                Text("₹ ${String.format("%.2f", totalAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                            }
+                        }
+                    }
+
+                    // GST Selection
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("GST Rate", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { gstRate = 0.0 },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = if (gstRate == 0.0) Color(0xFF06B6D4) else Color.Black
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("0%")
+                                }
+                                OutlinedButton(
+                                    onClick = { gstRate = 5.0 },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = if (gstRate == 5.0) Color(0xFF06B6D4) else Color.Black
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("5%")
+                                }
+                                OutlinedButton(
+                                    onClick = { gstRate = 18.0 },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = if (gstRate == 18.0) Color(0xFF06B6D4) else Color.Black
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("18%")
+                                }
+                            }
+                        }
+                    }
+
+                    // GST Amount Display
+                    if (gstRate > 0) {
+                        item {
+                            Card(
+                                backgroundColor = Color(0xFF111827),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("GST Amount (${gstRate.toInt()}%):", color = Color(0xFF9CA3AF), fontSize = 14.sp)
+                                    Text("₹ ${String.format("%.2f", gstAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    // Grand Total Display
+                    item {
+                        Card(
+                            backgroundColor = Color(0xFF111827),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Grand Total:", color = Color(0xFF9CA3AF), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("₹ ${String.format("%.2f", grandTotal)}", color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            }
+                        }
+                    }
+
+                    // Amount Paid
+                    item {
+                        OutlinedTextField(
+                            value = amountPaid,
+                            onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) amountPaid = it },
+                            label = { Text("Amount Paid (₹)", color = Color(0xFF9CA3AF)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                textColor = Color(0xFFF9FAFB),
+                                backgroundColor = Color(0xFF111827),
+                                focusedBorderColor = Color(0xFF06B6D4),
+                                unfocusedBorderColor = Color(0xFF374151),
+                                cursorColor = Color(0xFF06B6D4)
+                            ),
+                            singleLine = true
+                        )
+                    }
+
+                    // Pending/Credit Amount Display
+                    item {
+                        Card(
+                            backgroundColor = Color(0xFF111827),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    if (pendingAmount >= 0) "Pending Amount:" else "Credit Amount:",
+                                    color = Color(0xFF9CA3AF),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "₹ ${String.format("%.2f", kotlin.math.abs(pendingAmount))}",
+                                    color = if (pendingAmount >= 0) Color(0xFFF59E0B) else Color(0xFF10B981),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Notes
+                    item {
+                        OutlinedTextField(
+                            value = notes,
+                            onValueChange = { notes = it },
+                            label = { Text("Notes (optional)", color = Color(0xFF9CA3AF)) },
+                            modifier = Modifier.fillMaxWidth().height(80.dp),
+                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                textColor = Color(0xFFF9FAFB),
+                                backgroundColor = Color(0xFF111827),
+                                focusedBorderColor = Color(0xFF06B6D4),
+                                unfocusedBorderColor = Color(0xFF374151),
+                                cursorColor = Color(0xFF06B6D4)
+                            ),
+                            maxLines = 3
+                        )
+                    }
+
+                    // Image Selection
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Purchase Image (optional)", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val fileChooser = javax.swing.JFileChooser()
+                                        fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
+                                            "Image files", "jpg", "jpeg", "png", "gif", "webp"
+                                        )
+                                        val result = fileChooser.showOpenDialog(null)
+                                        if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+                                            selectedImageFile = fileChooser.selectedFile
+                                        }
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = Color(0xFF06B6D4)
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Select Image", tint = Color(0xFF06B6D4))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Select Image", color = Color(0xFF06B6D4))
+                                }
+                                
+                                if (selectedImageFile != null) {
+                                    Card(
+                                        backgroundColor = Color(0xFF111827),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                                Text(selectedImageFile!!.name, color = Color(0xFFF9FAFB), fontSize = 12.sp)
+                                            }
+                                            IconButton(
+                                                onClick = { selectedImageFile = null },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
-                // GST Selection
-                Text("GST Rate", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { gstRate = 0.0 },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (gstRate == 0.0) Color(0xFF06B6D4) else Color.Black
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("0%")
+                // Footer Buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = Color(0xFF9CA3AF))
                     }
-                    OutlinedButton(
-                        onClick = { gstRate = 5.0 },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (gstRate == 5.0) Color(0xFF06B6D4) else Color.Black
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("5%")
-                    }
-                    OutlinedButton(
-                        onClick = { gstRate = 18.0 },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (gstRate == 18.0) Color(0xFF06B6D4) else Color.Black
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("18%")
-                    }
-                }
 
-                // GST Amount Display
-                if (gstRate > 0) {
-                    Card(
-                        backgroundColor = Color(0xFF111827),
-                        modifier = Modifier.fillMaxWidth()
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isUploadingImage = true
+                                var imageUrl = ""
+                                
+                                // Upload image if selected
+                                if (selectedImageFile != null) {
+                                    val uploadResult = storageService.uploadImage(selectedImageFile!!, "purchases")
+                                    if (uploadResult.isSuccess) {
+                                        imageUrl = uploadResult.getOrNull() ?: ""
+                                    }
+                                }
+                                
+                                isUploadingImage = false
+                                
+                                val selectedEntity = customers.find { it.id == selectedEntityId }
+                                val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
+
+                                val paymentStatus = when {
+                                    paidAmount >= grandTotal -> PaymentStatus.PAID
+                                    paidAmount > 0 -> PaymentStatus.PARTIALLY_PAID
+                                    else -> PaymentStatus.PENDING
+                                }
+
+                                onSave(
+                                    Purchase(
+                                        customerId = selectedEntityId,
+                                        firmName = selectedEntity?.firmName ?: "",
+                                        purchaseDate = purchaseDate,
+                                        items = purchaseItems,
+                                        totalAmount = totalAmount,
+                                        gstRate = gstRate,
+                                        gstAmount = gstAmount,
+                                        grandTotal = grandTotal,
+                                        paymentStatus = paymentStatus,
+                                        amountPaid = paidAmount,
+                                        notes = notes,
+                                        imageUrl = imageUrl
+                                    )
+                                )
+                            }
+                        },
+                        enabled = selectedEntityId.isNotBlank() && purchaseItems.isNotEmpty() && !isUploadingImage,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF06B6D4),
+                            disabledBackgroundColor = Color(0xFF9CA3AF)
+                        )
                     ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("GST Amount (${gstRate.toInt()}%):", color = Color(0xFF9CA3AF), fontSize = 14.sp)
-                            Text("₹ ${String.format("%.2f", gstAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                        if (isUploadingImage) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color(0xFF111827),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                         }
+                        Text(if (isUploadingImage) "Uploading..." else "Log Purchase", color = Color(0xFF111827))
                     }
-                }
-
-                // Grand Total Display
-                Card(
-                    backgroundColor = Color(0xFF111827),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Grand Total:", color = Color(0xFF9CA3AF), fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("₹ ${String.format("%.2f", grandTotal)}", color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    }
-                }
-
-                // Amount Paid
-                OutlinedTextField(
-                    value = amountPaid,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) amountPaid = it },
-                    label = { Text("Amount Paid (₹)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
-                        backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF06B6D4),
-                        unfocusedBorderColor = Color(0xFF374151),
-                        cursorColor = Color(0xFF06B6D4)
-                    ),
-                    singleLine = true
-                )
-
-                // Pending/Credit Amount Display
-                Card(
-                    backgroundColor = Color(0xFF111827),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            if (pendingAmount >= 0) "Pending Amount:" else "Credit Amount:",
-                            color = Color(0xFF9CA3AF),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "₹ ${String.format("%.2f", kotlin.math.abs(pendingAmount))}",
-                            color = if (pendingAmount >= 0) Color(0xFFF59E0B) else Color(0xFF10B981),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    }
-                }
-
-                // Notes
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes (optional)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
-                        backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF06B6D4),
-                        unfocusedBorderColor = Color(0xFF374151),
-                        cursorColor = Color(0xFF06B6D4)
-                    ),
-                    maxLines = 3
-                )
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val selectedEntity = customers.find { it.id == selectedEntityId }
-                    val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
-                    
-                    // Auto-calculate payment status
-                    val paymentStatus = when {
-                        paidAmount >= grandTotal -> PaymentStatus.PAID
-                        paidAmount > 0 -> PaymentStatus.PARTIALLY_PAID
-                        else -> PaymentStatus.PENDING
-                    }
 
-                    onSave(
-                        Purchase(
-                            customerId = selectedEntityId,
-                            firmName = selectedEntity?.firmName ?: "",
-                            purchaseDate = purchaseDate,
-                            items = purchaseItems,
-                            totalAmount = totalAmount,
-                            gstRate = gstRate,
-                            gstAmount = gstAmount,
-                            grandTotal = grandTotal,
-                            paymentStatus = paymentStatus,
-                            amountPaid = paidAmount,
-                            notes = notes
-                        )
-                    )
-                },
-                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF06B6D4))
-            ) {
-                Text("Log Purchase", color = Color(0xFF111827))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF9CA3AF))
-            }
         }
-    )
+    }
 }
 
 @Composable
@@ -859,6 +1179,11 @@ fun EditPurchaseDialog(
     var amountPaid by remember { mutableStateOf(purchase.amountPaid.toString()) }
     var notes by remember { mutableStateOf(purchase.notes) }
     var purchaseItems by remember { mutableStateOf(purchase.items) }
+    var selectedImageFile by remember { mutableStateOf<java.io.File?>(null) }
+    var currentImageUrl by remember { mutableStateOf(purchase.imageUrl) }
+    var isUploadingImage by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val storageService = remember { FirebaseStorageService(com.humblecoders.plantmanagement.FirebaseCredentialsHolder.credentials) }
 
     val totalAmount = purchaseItems.sumOf { it.totalPrice }
     val gstAmount = totalAmount * (gstRate / 100.0)
@@ -866,27 +1191,54 @@ fun EditPurchaseDialog(
     val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
     val pendingAmount = grandTotal - paidAmount
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        backgroundColor = Color(0xFF1F2937),
-        title = {
-            Text("Edit Purchase", color = Color(0xFFF9FAFB), fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Box(
-                modifier = Modifier
-                    .width(700.dp)
-                    .height(750.dp)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .width(750.dp)
+                .height(700.dp),
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            elevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                Column(
+                // Header
+                Row(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(end = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Edit Purchase",
+                        color = Color(0xFFF9FAFB),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+
+                // Scrollable Content
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
                 // Entity Dropdown (Disabled)
-                Box(modifier = Modifier.fillMaxWidth()) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(
                         onClick = { },
                         modifier = Modifier.fillMaxWidth(),
@@ -902,22 +1254,29 @@ fun EditPurchaseDialog(
                         )
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                     }
+                    }
                 }
 
                 // Purchase Date
-                DatePicker(
-                    selectedDate = try { LocalDate.parse(purchaseDate) } catch (e: Exception) { LocalDate.now() },
-                    onDateSelected = { date -> 
-                        purchaseDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    },
-                    label = "Purchase Date",
-                    modifier = Modifier.fillMaxWidth()
-                )
+                item {
+                    DatePicker(
+                        selectedDate = try { LocalDate.parse(purchaseDate) } catch (e: Exception) { LocalDate.now() },
+                        onDateSelected = { date -> 
+                            purchaseDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                        },
+                        label = "Purchase Date",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
-                Divider(color = Color(0xFF374151))
+                // Divider
+                item {
+                    Divider(color = Color(0xFF374151))
+                }
 
-                // Items Section
-                Row(
+                // Items Section Header
+                item {
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -938,9 +1297,12 @@ fun EditPurchaseDialog(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Add Item", color = Color.White, fontSize = 12.sp)
                     }
+                    }
                 }
 
-                purchaseItems.forEachIndexed { index, item ->
+                // Items List - Purchase Items
+                items(purchaseItems.size) { index ->
+                    val item = purchaseItems[index]
                     PurchaseItemCard(
                         item = item,
                         index = index,
@@ -958,58 +1320,13 @@ fun EditPurchaseDialog(
                     )
                 }
 
-                Divider(color = Color(0xFF374151))
+                // Divider
+                item {
+                    Divider(color = Color(0xFF374151))
+                }
 
                 // Total Amount Display
-                Card(
-                    backgroundColor = Color(0xFF111827),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                            modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                            Text("Total Amount:", color = Color(0xFF9CA3AF), fontSize = 14.sp)
-                            Text("₹ ${String.format("%.2f", totalAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
-                        }
-                    }
-                }
-
-                // GST Selection
-                Text("GST Rate", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { gstRate = 0.0 },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (gstRate == 0.0) Color(0xFF06B6D4) else Color.Black
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("0%")
-                    }
-                    OutlinedButton(
-                        onClick = { gstRate = 5.0 },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (gstRate == 5.0) Color(0xFF06B6D4) else Color.Black
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("5%")
-                    }
-                    OutlinedButton(
-                        onClick = { gstRate = 18.0 },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (gstRate == 18.0) Color(0xFF06B6D4) else Color.Black
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("18%")
-                    }
-                }
-
-                // GST Amount Display
-                if (gstRate > 0) {
+                item {
                     Card(
                         backgroundColor = Color(0xFF111827),
                         modifier = Modifier.fillMaxWidth()
@@ -1018,32 +1335,90 @@ fun EditPurchaseDialog(
                             modifier = Modifier.padding(16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("GST Amount (${gstRate.toInt()}%):", color = Color(0xFF9CA3AF), fontSize = 14.sp)
-                            Text("₹ ${String.format("%.2f", gstAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                            Text("Total Amount:", color = Color(0xFF9CA3AF), fontSize = 14.sp)
+                            Text("₹ ${String.format("%.2f", totalAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                        }
+                    }
+                }
+
+                // GST Selection
+                item {
+                    Text("GST Rate", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
+                
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { gstRate = 0.0 },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (gstRate == 0.0) Color(0xFF06B6D4) else Color.Black
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("0%")
+                        }
+                        OutlinedButton(
+                            onClick = { gstRate = 5.0 },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (gstRate == 5.0) Color(0xFF06B6D4) else Color.Black
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("5%")
+                        }
+                        OutlinedButton(
+                            onClick = { gstRate = 18.0 },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (gstRate == 18.0) Color(0xFF06B6D4) else Color.Black
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("18%")
+                        }
+                    }
+                }
+
+                // GST Amount Display
+                if (gstRate > 0) {
+                    item {
+                        Card(
+                            backgroundColor = Color(0xFF111827),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("GST Amount (${gstRate.toInt()}%):", color = Color(0xFF9CA3AF), fontSize = 14.sp)
+                                Text("₹ ${String.format("%.2f", gstAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                            }
                         }
                     }
                 }
 
                 // Grand Total Display
-                Card(
-                    backgroundColor = Color(0xFF111827),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                item {
+                    Card(
+                        backgroundColor = Color(0xFF111827),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Grand Total:", color = Color(0xFF9CA3AF), fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("₹ ${String.format("%.2f", grandTotal)}", color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Grand Total:", color = Color(0xFF9CA3AF), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("₹ ${String.format("%.2f", grandTotal)}", color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        }
                     }
                 }
 
                 // Amount Paid
+                item {
                     OutlinedTextField(
                         value = amountPaid,
                         onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) amountPaid = it },
                         label = { Text("Amount Paid (₹)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                         colors = TextFieldDefaults.outlinedTextFieldColors(
                             textColor = Color(0xFFF9FAFB),
                             backgroundColor = Color(0xFF111827),
@@ -1052,90 +1427,219 @@ fun EditPurchaseDialog(
                             cursorColor = Color(0xFF06B6D4)
                         ),
                         singleLine = true
-                )
+                    )
+                }
 
                 // Pending/Credit Amount Display
-                Card(
-                    backgroundColor = Color(0xFF111827),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                item {
+                    Card(
+                        backgroundColor = Color(0xFF111827),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            if (pendingAmount >= 0) "Pending Amount:" else "Credit Amount:",
-                            color = Color(0xFF9CA3AF),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "₹ ${String.format("%.2f", kotlin.math.abs(pendingAmount))}",
-                            color = if (pendingAmount >= 0) Color(0xFFF59E0B) else Color(0xFF10B981),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                if (pendingAmount >= 0) "Pending Amount:" else "Credit Amount:",
+                                color = Color(0xFF9CA3AF),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "₹ ${String.format("%.2f", kotlin.math.abs(pendingAmount))}",
+                                color = if (pendingAmount >= 0) Color(0xFFF59E0B) else Color(0xFF10B981),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
                     }
                 }
 
                 // Notes
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes (optional)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
-                        backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF06B6D4),
-                        unfocusedBorderColor = Color(0xFF374151),
-                        cursorColor = Color(0xFF06B6D4)
-                    ),
-                    maxLines = 3
-                )
+                item {
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = { Text("Notes (optional)", color = Color(0xFF9CA3AF)) },
+                        modifier = Modifier.fillMaxWidth().height(100.dp),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            textColor = Color(0xFFF9FAFB),
+                            backgroundColor = Color(0xFF111827),
+                            focusedBorderColor = Color(0xFF06B6D4),
+                            unfocusedBorderColor = Color(0xFF374151),
+                            cursorColor = Color(0xFF06B6D4)
+                        ),
+                        maxLines = 3
+                    )
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val selectedEntity = customers.find { it.id == selectedEntityId }
-                    val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
-                    
-                    // Auto-calculate payment status
-                    val paymentStatus = when {
-                        paidAmount >= grandTotal -> PaymentStatus.PAID
-                        paidAmount > 0 -> PaymentStatus.PARTIALLY_PAID
-                        else -> PaymentStatus.PENDING
+
+                // Image Selection
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Purchase Image (optional)", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    val fileChooser = javax.swing.JFileChooser()
+                                    fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
+                                        "Image files", "jpg", "jpeg", "png", "gif", "webp"
+                                    )
+                                    val result = fileChooser.showOpenDialog(null)
+                                    if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+                                        selectedImageFile = fileChooser.selectedFile
+                                    }
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color(0xFF06B6D4)
+                                )
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Select Image", tint = Color(0xFF06B6D4))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (currentImageUrl.isNotBlank()) "Change Image" else "Select Image", color = Color(0xFF06B6D4))
+                            }
+                            
+                            if (selectedImageFile != null) {
+                                Card(
+                                    backgroundColor = Color(0xFF111827),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                            Text(selectedImageFile!!.name, color = Color(0xFFF9FAFB), fontSize = 12.sp)
+                                        }
+                                        IconButton(
+                                            onClick = { selectedImageFile = null },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            } else if (currentImageUrl.isNotBlank()) {
+                                Card(
+                                    backgroundColor = Color(0xFF111827),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                            Text("Image attached", color = Color(0xFFF9FAFB), fontSize = 12.sp)
+                                        }
+                                        IconButton(
+                                            onClick = { currentImageUrl = "" },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                }
+
+                // Footer Buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = Color(0xFF9CA3AF))
                     }
 
-                    onSave(
-                        Purchase(
-                            customerId = selectedEntityId,
-                            firmName = selectedEntity?.firmName ?: purchase.firmName,
-                            purchaseDate = purchaseDate,
-                            items = purchaseItems,
-                            totalAmount = totalAmount,
-                            gstRate = gstRate,
-                            gstAmount = gstAmount,
-                            grandTotal = grandTotal,
-                            paymentStatus = paymentStatus,
-                            amountPaid = paidAmount,
-                            notes = notes
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isUploadingImage = true
+                                var imageUrl = currentImageUrl
+                                
+                                // Upload new image if selected
+                                if (selectedImageFile != null) {
+                                    val uploadResult = storageService.uploadImage(selectedImageFile!!, "purchases")
+                                    if (uploadResult.isSuccess) {
+                                        imageUrl = uploadResult.getOrNull() ?: currentImageUrl
+                                    }
+                                }
+                                
+                                isUploadingImage = false
+                                
+                                val selectedEntity = customers.find { it.id == selectedEntityId }
+                                val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
+                                
+                                // Auto-calculate payment status
+                                val paymentStatus = when {
+                                    paidAmount >= grandTotal -> PaymentStatus.PAID
+                                    paidAmount > 0 -> PaymentStatus.PARTIALLY_PAID
+                                    else -> PaymentStatus.PENDING
+                                }
+
+                                onSave(
+                                    Purchase(
+                                        customerId = selectedEntityId,
+                                        firmName = selectedEntity?.firmName ?: purchase.firmName,
+                                        purchaseDate = purchaseDate,
+                                        items = purchaseItems,
+                                        totalAmount = totalAmount,
+                                        gstRate = gstRate,
+                                        gstAmount = gstAmount,
+                                        grandTotal = grandTotal,
+                                        paymentStatus = paymentStatus,
+                                        amountPaid = paidAmount,
+                                        notes = notes,
+                                        imageUrl = imageUrl
+                                    )
+                                )
+                            }
+                        },
+                        enabled = purchaseItems.isNotEmpty() && !isUploadingImage,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF06B6D4),
+                            disabledBackgroundColor = Color(0xFF9CA3AF)
                         )
-                    )
-                },
-                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF06B6D4))
-            ) {
-                Text("Update Purchase", color = Color(0xFF111827))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF9CA3AF))
+                    ) {
+                        if (isUploadingImage) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color(0xFF111827),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (isUploadingImage) "Uploading..." else "Update Purchase", color = Color(0xFF111827))
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -1143,18 +1647,186 @@ fun ViewPurchaseDialog(
     purchase: Purchase,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        backgroundColor = Color(0xFF1F2937),
-        title = {
-            Text("Purchase Details", color = Color(0xFFF9FAFB), fontWeight = FontWeight.Bold)
-        },
-        text = {
+    val pdfService = remember { com.humblecoders.plantmanagement.services.PdfGeneratorService() }
+    val coroutineScope = rememberCoroutineScope()
+    var isGeneratingPdf by remember { mutableStateOf(false) }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .width(650.dp)
+                .height(700.dp),
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            elevation = 8.dp
+        ) {
             Column(
-                modifier = Modifier.width(600.dp).height(600.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.fillMaxSize()
             ) {
-                Card(
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Purchase Details",
+                        color = Color(0xFFF9FAFB),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Download PDF Button
+                        OutlinedButton(
+                            onClick = {
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        isGeneratingPdf = true
+                                    }
+                                    try {
+                                        val outputFile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            val fileChooser = javax.swing.JFileChooser()
+                                            fileChooser.dialogTitle = "Save Purchase Bill"
+                                            val defaultFileName = "Purchase_${purchase.firmName.replace(" ", "_")}_${purchase.purchaseDate}.pdf"
+                                            fileChooser.selectedFile = java.io.File(defaultFileName)
+                                            
+                                            // Enable file overwrite without confirmation
+                                            fileChooser.fileSelectionMode = javax.swing.JFileChooser.FILES_ONLY
+                                            fileChooser.approveButtonText = "Save"
+                                            
+                                            val result = fileChooser.showSaveDialog(null)
+                                            
+                                            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+                                                val selectedFile = fileChooser.selectedFile
+                                                // Ensure .pdf extension
+                                                val finalFile = if (!selectedFile.name.endsWith(".pdf", ignoreCase = true)) {
+                                                    java.io.File(selectedFile.parent, "${selectedFile.name}.pdf")
+                                                } else {
+                                                    selectedFile
+                                                }
+                                                
+                                                // Delete existing file if it exists (auto-replace)
+                                                if (finalFile.exists()) {
+                                                    finalFile.delete()
+                                                }
+                                                
+                                                finalFile
+                                            } else {
+                                                null
+                                            }
+                                        }
+                                        
+                                        if (outputFile != null) {
+                                            val pdfResult = pdfService.generatePurchaseBill(purchase, outputFile)
+                                            
+                                            if (pdfResult.isSuccess) {
+                                                // Open the PDF after saving
+                                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                    java.awt.Desktop.getDesktop().open(outputFile)
+                                                }
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        println("Error saving PDF: ${e.message}")
+                                        e.printStackTrace()
+                                    } finally {
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            isGeneratingPdf = false
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isGeneratingPdf,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF10B981)
+                            )
+                        ) {
+                            if (isGeneratingPdf) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color(0xFF10B981),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Build,
+                                    contentDescription = "Download PDF",
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (isGeneratingPdf) "Generating..." else "Download PDF", color = Color(0xFF10B981), fontSize = 12.sp)
+                        }
+                        
+                        // Print Button
+                        OutlinedButton(
+                            onClick = {
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        isGeneratingPdf = true
+                                    }
+                                    try {
+                                        val tempFile = java.io.File.createTempFile("purchase_bill_", ".pdf")
+                                        val pdfResult = pdfService.generatePurchaseBill(purchase, tempFile)
+                                        
+                                        if (pdfResult.isSuccess) {
+                                            // Print the PDF
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                java.awt.Desktop.getDesktop().print(tempFile)
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        println("Error printing PDF: ${e.message}")
+                                        e.printStackTrace()
+                                    } finally {
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            isGeneratingPdf = false
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isGeneratingPdf,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF06B6D4)
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Send,
+                                contentDescription = "Print",
+                                tint = Color(0xFF06B6D4),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Print", color = Color(0xFF06B6D4), fontSize = 12.sp)
+                        }
+                        
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color(0xFF9CA3AF)
+                            )
+                        }
+                    }
+                }
+
+                // Scrollable Content
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+                ) {
+                    item {
+                        Card(
                     backgroundColor = Color(0xFF111827),
                     shape = RoundedCornerShape(8.dp)
                 ) {
@@ -1164,17 +1836,19 @@ fun ViewPurchaseDialog(
                         DetailRow("Purchase Date", purchase.purchaseDate)
                         DetailRow("Entity", purchase.firmName)
                     }
-                }
+                        }
+                    }
 
-                Card(
-                    backgroundColor = Color(0xFF111827),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Items Purchased", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
-                        Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+                    item {
+                        Card(
+                            backgroundColor = Color(0xFF111827),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Items Purchased", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                                Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
 
-                        purchase.items.forEach { item ->
+                                purchase.items.forEach { item ->
                             Card(
                                 backgroundColor = Color(0xFF1F2937),
                                 shape = RoundedCornerShape(6.dp)
@@ -1205,16 +1879,18 @@ fun ViewPurchaseDialog(
                                 }
                             }
                             Spacer(modifier = Modifier.height(4.dp))
+                                }
+                            }
                         }
                     }
-                }
 
-                Card(
-                    backgroundColor = Color(0xFF111827),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Payment Details", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                    item {
+                        Card(
+                            backgroundColor = Color(0xFF111827),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Payment Details", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
                         Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
                         DetailRow("Total Amount", "₹ ${String.format("%.2f", purchase.totalAmount)}")
                         if (purchase.gstRate > 0) {
@@ -1230,36 +1906,96 @@ fun ViewPurchaseDialog(
                                 PaymentStatus.PARTIALLY_PAID -> Color(0xFF3B82F6)
                             }
                         )
-                        DetailRow("Amount Paid", "₹ ${String.format("%.2f", purchase.amountPaid)}")
-                        if (purchase.grandTotal - purchase.amountPaid > 0) {
-                            DetailRow("Balance", "₹ ${String.format("%.2f", purchase.grandTotal - purchase.amountPaid)}", valueColor = Color(0xFFEF4444))
+                                DetailRow("Amount Paid", "₹ ${String.format("%.2f", purchase.amountPaid)}")
+                                if (purchase.grandTotal - purchase.amountPaid > 0) {
+                                    DetailRow("Balance", "₹ ${String.format("%.2f", purchase.grandTotal - purchase.amountPaid)}", valueColor = Color(0xFFEF4444))
+                                }
+                            }
+                        }
+                    }
+
+                    if (purchase.notes.isNotBlank()) {
+                        item {
+                            Card(
+                                backgroundColor = Color(0xFF111827),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Notes", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                                    Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+                                    Text(purchase.notes, color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    // Image Display
+                    if (purchase.imageUrl.isNotBlank()) {
+                        item {
+                            Card(
+                                backgroundColor = Color(0xFF111827),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Purchase Image", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                                        OutlinedButton(
+                                            onClick = {
+                                                try {
+                                                    // Fix URL encoding before opening in browser
+                                                    val fixedUrl = fixImageUrl(purchase.imageUrl)
+                                                    java.awt.Desktop.getDesktop().browse(java.net.URI(fixedUrl))
+                                                } catch (e: Exception) {
+                                                    println("Error opening image: ${e.message}")
+                                                    e.printStackTrace()
+                                                }
+                                            },
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = Color(0xFF06B6D4)
+                                            )
+                                        ) {
+                                            Text("View Image", color = Color(0xFF06B6D4), fontSize = 12.sp)
+                                        }
+                                    }
+                                    Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+                                    
+                                    // Display image
+                                    NetworkImage(
+                                        url = purchase.imageUrl,
+                                        contentDescription = "Purchase Image",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                        if (purchase.notes.isNotBlank()) {
-                    Card(
-                        backgroundColor = Color(0xFF111827),
-                        shape = RoundedCornerShape(8.dp)
+                // Footer Button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF06B6D4))
                     ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Notes", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
-                            Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
-                            Text(purchase.notes, color = Color(0xFFF9FAFB), fontSize = 14.sp)
-                        }
+                        Text("Close", color = Color(0xFF111827))
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF06B6D4))
-            ) {
-                Text("Close", color = Color(0xFF111827))
-            }
         }
-    )
+    }
 }
 
 @Composable
@@ -1270,5 +2006,208 @@ fun DetailRow(label: String, value: String, valueColor: Color = Color(0xFFF9FAFB
     ) {
         Text(text = "$label:", color = Color(0xFF9CA3AF), fontSize = 14.sp)
         Text(text = value, color = valueColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+fun NetworkImage(
+    url: String,
+    contentDescription: String,
+    modifier: Modifier = Modifier
+) {
+    var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var hasError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    
+    LaunchedEffect(url) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            var attempts = 0
+            val maxAttempts = 3
+            
+            while (attempts < maxAttempts && imageBitmap == null && !hasError) {
+                try {
+                    attempts++
+                    
+                    // Validate and clean URL
+                    var cleanUrl = url.trim()
+                    if (cleanUrl.isEmpty()) {
+                        throw Exception("Empty image URL")
+                    }
+                    
+                    // Fix URLs with unencoded spaces (legacy URLs)
+                    // Extract the path part after /o/ and before ?alt=media
+                    if (cleanUrl.contains("/o/") && cleanUrl.contains("?alt=media")) {
+                        val parts = cleanUrl.split("/o/")
+                        if (parts.size == 2) {
+                            val pathAndQuery = parts[1].split("?alt=media")
+                            if (pathAndQuery.isNotEmpty()) {
+                                val path = pathAndQuery[0]
+                                // Decode, then re-encode properly
+                                val decodedPath = java.net.URLDecoder.decode(path, "UTF-8")
+                                val properlyEncodedPath = java.net.URLEncoder.encode(decodedPath, "UTF-8")
+                                    .replace("+", "%20")
+                                cleanUrl = "${parts[0]}/o/${properlyEncodedPath}?alt=media"
+                            }
+                        }
+                    }
+                    
+                    println("Loading image (attempt $attempts/$maxAttempts)")
+                    println("Original URL: $url")
+                    if (url != cleanUrl) {
+                        println("Fixed URL: $cleanUrl")
+                    }
+                    
+                    // Create URL connection with proper settings
+                    val urlObj = URL(cleanUrl)
+                    val connection = urlObj.openConnection() as java.net.HttpURLConnection
+                    connection.connectTimeout = 15000 // 15 seconds
+                    connection.readTimeout = 15000 // 15 seconds
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+                    connection.setRequestProperty("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
+                    connection.instanceFollowRedirects = true
+                    connection.doInput = true
+                    
+                    connection.connect()
+                    
+                    val responseCode = connection.responseCode
+                    println("HTTP Response: $responseCode ${connection.responseMessage}")
+                    
+                    if (responseCode == 200) {
+                        val inputStream = connection.inputStream
+                        val bufferedImage: BufferedImage = ImageIO.read(inputStream)
+                        inputStream.close()
+                        
+                        if (bufferedImage != null) {
+                            imageBitmap = bufferedImage.toImageBitmap()
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                isLoading = false
+                            }
+                            println("Image loaded successfully!")
+                        } else {
+                            throw Exception("ImageIO returned null - unsupported format")
+                        }
+                    } else if (responseCode == 400) {
+                        // For 400 errors, log the full response
+                        val errorStream = connection.errorStream
+                        val errorMsg = errorStream?.bufferedReader()?.readText() ?: "No error details"
+                        errorStream?.close()
+                        println("400 Error details: $errorMsg")
+                        throw Exception("Bad Request (400) - Invalid URL format or permissions")
+                    } else {
+                        throw Exception("HTTP $responseCode: ${connection.responseMessage}")
+                    }
+                    
+                    connection.disconnect()
+                } catch (e: Exception) {
+                    println("Error loading image (attempt $attempts/$maxAttempts): ${e.message}")
+                    errorMessage = e.message ?: "Unknown error"
+                    
+                    if (attempts >= maxAttempts) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            hasError = true
+                            isLoading = false
+                        }
+                    } else {
+                        // Wait before retry
+                        kotlinx.coroutines.delay(1000)
+                    }
+                }
+            }
+        }
+    }
+    
+    Box(
+        modifier = modifier.background(Color(0xFF1F2937), RoundedCornerShape(8.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            isLoading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(40.dp),
+                    color = Color(0xFF06B6D4),
+                    strokeWidth = 3.dp
+                )
+            }
+            hasError -> {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = "Error",
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Failed to load image", color = Color(0xFF9CA3AF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    if (errorMessage.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(errorMessage, color = Color(0xFF6B7280), fontSize = 10.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = {
+                            // Open image URL in browser
+                            try {
+                                val fixedUrl = fixImageUrl(url)
+                                java.awt.Desktop.getDesktop().browse(java.net.URI(fixedUrl))
+                            } catch (e: Exception) {
+                                println("Error opening URL: ${e.message}")
+                                e.printStackTrace()
+                            }
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF06B6D4)
+                        )
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Open in browser", modifier = Modifier.size(14.dp), tint = Color(0xFF06B6D4))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Open in browser", fontSize = 11.sp, color = Color(0xFF06B6D4))
+                    }
+                }
+            }
+            imageBitmap != null -> {
+                androidx.compose.foundation.Image(
+                    bitmap = imageBitmap!!,
+                    contentDescription = contentDescription,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+            }
+        }
+    }
+}
+
+private fun BufferedImage.toImageBitmap(): ImageBitmap {
+    val baos = ByteArrayOutputStream()
+    ImageIO.write(this, "png", baos)
+    val bytes = baos.toByteArray()
+    
+    return org.jetbrains.skia.Image.makeFromEncoded(bytes).asImageBitmap()
+}
+
+private fun fixImageUrl(url: String): String {
+    return try {
+        if (url.contains("/o/") && url.contains("?alt=media")) {
+            val parts = url.split("/o/")
+            if (parts.size == 2) {
+                val pathAndQuery = parts[1].split("?alt=media")
+                if (pathAndQuery.isNotEmpty()) {
+                    val path = pathAndQuery[0]
+                    // Decode, then re-encode properly
+                    val decodedPath = java.net.URLDecoder.decode(path, "UTF-8")
+                    val properlyEncodedPath = java.net.URLEncoder.encode(decodedPath, "UTF-8")
+                        .replace("+", "%20")
+                    return "${parts[0]}/o/${properlyEncodedPath}?alt=media"
+                }
+            }
+        }
+        url
+    } catch (e: Exception) {
+        println("Error fixing URL: ${e.message}")
+        url
     }
 }

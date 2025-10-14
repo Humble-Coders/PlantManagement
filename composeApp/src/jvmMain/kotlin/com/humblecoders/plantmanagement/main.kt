@@ -15,12 +15,17 @@ import com.humblecoders.plantmanagement.repositories.EntityRepository
 import com.humblecoders.plantmanagement.repositories.FirebaseAuthRestClient
 import com.humblecoders.plantmanagement.repositories.InventoryRepository
 import com.humblecoders.plantmanagement.repositories.PurchaseRepository
+import com.humblecoders.plantmanagement.repositories.CashOutRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import java.io.ByteArrayInputStream
+
+object FirebaseCredentialsHolder {
+    var credentials: GoogleCredentials? = null
+}
 
 fun main() = application {
     // Firebase configuration - Replace with your actual config
@@ -47,11 +52,12 @@ fun main() = application {
     val appId = "default-app-id" // Change this to your actual app ID
 
     // Initialize Firebase
-    val firebaseOk = initializeFirebase(firebaseConfig)
+    val firebaseCredentials = initializeFirebase(firebaseConfig)
+    FirebaseCredentialsHolder.credentials = firebaseCredentials
 
     // Initialize Firebase services (guard if initialization failed)
-    val auth = if (firebaseOk) FirebaseAuth.getInstance() else null
-    val firestore = if (firebaseOk) FirestoreClient.getFirestore() else null
+    val auth = if (firebaseCredentials != null) FirebaseAuth.getInstance() else null
+    val firestore = if (firebaseCredentials != null) FirestoreClient.getFirestore() else null
     val firestoreNonNull = firestore ?: FirestoreClient.getFirestore()
     val restClient = FirebaseAuthRestClient(firebaseApiKey)
 
@@ -88,7 +94,8 @@ fun main() = application {
             entityViewModel = EntityViewModel(entityRepository)
 
             val purchaseRepository = PurchaseRepository(firestoreNonNull, currentUser.uid, appId)
-            purchaseViewModel = PurchaseViewModel(purchaseRepository)
+            val cashOutRepository = CashOutRepository(firestoreNonNull, currentUser.uid, appId)
+            purchaseViewModel = PurchaseViewModel(purchaseRepository, cashOutRepository)
 
             val inventoryRepository = InventoryRepository(firestoreNonNull, currentUser.uid, appId)
             inventoryViewModel = InventoryViewModel(inventoryRepository)
@@ -105,14 +112,17 @@ fun main() = application {
             AppNavigation(
                 authViewModel = authViewModel,
                 entityViewModel = EntityViewModel(EntityRepository(firestoreNonNull, "", appId)),
-                purchaseViewModel = PurchaseViewModel(PurchaseRepository(firestoreNonNull, "", appId)),
+                purchaseViewModel = PurchaseViewModel(
+                    PurchaseRepository(firestoreNonNull, "", appId),
+                    CashOutRepository(firestoreNonNull, "", appId)
+                ),
                 inventoryViewModel = InventoryViewModel(InventoryRepository(firestoreNonNull, "", appId))
             )
         }
     }
 }
 
-private fun initializeFirebase(config: Map<String, String>): Boolean {
+private fun initializeFirebase(config: Map<String, String>): GoogleCredentials? {
     try {
         val clientEmail = config["client_email"] ?: error("client_email missing")
         val clientId = config["client_id"] ?: error("client_id missing")
@@ -126,7 +136,7 @@ private fun initializeFirebase(config: Map<String, String>): Boolean {
             privateKeyId,
             listOf(
                 "https://www.googleapis.com/auth/cloud-platform",
-                "https://www.googleapis.com/auth/datastore"
+                "https://www.googleapis.com/auth/devstorage.read_write"
             )
         )
 
@@ -138,10 +148,10 @@ private fun initializeFirebase(config: Map<String, String>): Boolean {
         FirebaseApp.initializeApp(options)
 
         println("Firebase initialized successfully")
-        return true
+        return credentials
     } catch (e: Exception) {
         println("Error initializing Firebase: ${e.message}")
         e.printStackTrace()
-        return false
+        return null
     }
 }

@@ -2,13 +2,18 @@ package com.humblecoders.plantmanagement.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,14 +26,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.humblecoders.plantmanagement.data.CategoryType
 import com.humblecoders.plantmanagement.data.InventoryItem
+import com.humblecoders.plantmanagement.data.UserRole
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 
 @Composable
-fun InventoryScreen(inventoryViewModel: InventoryViewModel) {
+fun InventoryScreen(inventoryViewModel: InventoryViewModel, userRole: UserRole? = null) {
     val inventoryState = inventoryViewModel.inventoryState
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var itemToEdit by remember { mutableStateOf<InventoryItem?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var itemToDelete by remember { mutableStateOf<InventoryItem?>(null) }
+    
+    val isAdmin = userRole == UserRole.ADMIN
 
     LaunchedEffect(inventoryState.successMessage, inventoryState.error) {
         if (inventoryState.successMessage != null || inventoryState.error != null) {
@@ -37,11 +47,12 @@ fun InventoryScreen(inventoryViewModel: InventoryViewModel) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -104,8 +115,10 @@ fun InventoryScreen(inventoryViewModel: InventoryViewModel) {
 
                     Button(
                         onClick = { showAddDialog = true },
+                        enabled = !inventoryState.isAdding && !inventoryState.isLoading,
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF06B6D4)
+                            backgroundColor = Color(0xFF06B6D4),
+                            disabledBackgroundColor = Color(0xFF9CA3AF)
                         )
                     ) {
                         Text("Add Item", color = Color(0xFF111827))
@@ -206,8 +219,52 @@ fun InventoryScreen(inventoryViewModel: InventoryViewModel) {
                         itemToEdit = it
                         showEditDialog = true
                     },
-                    onDeleteClick = { inventoryViewModel.deleteInventoryItem(it.id) }
+                    onDeleteClick = {
+                        itemToDelete = it
+                        showDeleteConfirmDialog = true
+                    },
+                    isAdmin = isAdmin
                 )
+            }
+        }
+        }
+
+        // Loading indicator overlay
+        if (inventoryState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    backgroundColor = Color(0xFF1F2937),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            color = Color(0xFF06B6D4),
+                            strokeWidth = 3.dp
+                        )
+                        Text(
+                            text = when {
+                                inventoryState.isAdding -> "Adding item..."
+                                inventoryState.isUpdating -> "Updating item..."
+                                inventoryState.isDeleting -> "Deleting item..."
+                                else -> "Processing..."
+                            },
+                            color = Color(0xFFF9FAFB),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
     }
@@ -236,13 +293,31 @@ fun InventoryScreen(inventoryViewModel: InventoryViewModel) {
             }
         )
     }
+    
+    // Delete Confirmation Dialog
+    if (showDeleteConfirmDialog && itemToDelete != null) {
+        DeleteConfirmationDialog(
+            itemName = itemToDelete!!.name,
+            itemType = "inventory item",
+            onConfirm = {
+                inventoryViewModel.deleteInventoryItem(itemToDelete!!.id)
+                showDeleteConfirmDialog = false
+                itemToDelete = null
+            },
+            onDismiss = {
+                showDeleteConfirmDialog = false
+                itemToDelete = null
+            }
+        )
+    }
 }
 
 @Composable
 fun InventoryTable(
     items: List<InventoryItem>,
     onEditClick: (InventoryItem) -> Unit,
-    onDeleteClick: (InventoryItem) -> Unit
+    onDeleteClick: (InventoryItem) -> Unit,
+    isAdmin: Boolean
 ) {
     Column {
         Row(
@@ -283,11 +358,26 @@ fun InventoryTable(
                     modifier = Modifier.weight(0.15f),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    TextButton(onClick = { onEditClick(item) }) {
-                        Text("Edit", color = Color(0xFF10B981), fontSize = 12.sp)
-                    }
-                    TextButton(onClick = { onDeleteClick(item) }) {
-                        Text("Delete", color = Color(0xFFEF4444), fontSize = 12.sp)
+                    if (isAdmin) {
+                        TextButton(onClick = { onEditClick(item) }) {
+                            Text("Edit", color = Color(0xFF10B981), fontSize = 12.sp)
+                        }
+                        TextButton(onClick = { onDeleteClick(item) }) {
+                            Text("Delete", color = Color(0xFFEF4444), fontSize = 12.sp)
+                        }
+                    } else {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Locked",
+                                tint = Color(0xFF6B7280),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text("Locked", color = Color(0xFF6B7280), fontSize = 11.sp)
+                        }
                     }
                 }
             }
@@ -318,18 +408,53 @@ fun AddInventoryItemDialog(
 
     val focusRequesters = remember { List(3) { FocusRequester() } }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        backgroundColor = Color(0xFF1F2937),
-        title = {
-            Text("Add Inventory Item", color = Color(0xFFF9FAFB), fontWeight = FontWeight.Bold)
-        },
-        text = {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .width(550.dp)
+                .height(600.dp),
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            elevation = 8.dp
+        ) {
             Column(
-                modifier = Modifier.width(500.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxSize()
             ) {
-                OutlinedTextField(
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Add Inventory Item",
+                        color = Color(0xFFF9FAFB),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+
+                // Scrollable Content
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+                ) {
+                    item {
+                        OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Item Name", color = Color(0xFF9CA3AF)) },
@@ -349,110 +474,141 @@ fun AddInventoryItemDialog(
                     ),
                     singleLine = true
                 )
+                    }
 
-                OutlinedTextField(
-                    value = quantity,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) quantity = it },
-                    label = { Text("Quantity", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[1])
-                        .onKeyEvent { event ->
-                            if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
-                                focusRequesters[2].requestFocus()
-                                true
-                            } else false
+                    item {
+                        OutlinedTextField(
+                            value = quantity,
+                            onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) quantity = it },
+                            label = { Text("Quantity", color = Color(0xFF9CA3AF)) },
+                            modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[1])
+                                .onKeyEvent { event ->
+                                    if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
+                                        focusRequesters[2].requestFocus()
+                                        true
+                                    } else false
+                                },
+                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                textColor = Color(0xFFF9FAFB),
+                                backgroundColor = Color(0xFF111827),
+                                focusedBorderColor = Color(0xFF06B6D4),
+                                unfocusedBorderColor = Color(0xFF374151),
+                                cursorColor = Color(0xFF06B6D4)
+                            ),
+                            singleLine = true
+                        )
+                    }
+
+                    item {
+                        Text("Unit Type", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
+                    }
+
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { selectedUnitType = "kg" },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (selectedUnitType == "kg") Color(0xFF06B6D4) else Color.Black
+                                )
+                            ) {
+                                Text("kg")
+                            }
+                            OutlinedButton(
+                                onClick = { selectedUnitType = "other" },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (selectedUnitType == "other") Color(0xFF06B6D4) else Color.Black
+                                )
+                            ) {
+                                Text("Other")
+                            }
+                        }
+                    }
+
+                    if (selectedUnitType == "other") {
+                        item {
+                            OutlinedTextField(
+                                value = customUnit,
+                                onValueChange = { customUnit = it },
+                                label = { Text("Specify Unit (e.g., metre, litre)", color = Color(0xFF9CA3AF)) },
+                                modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[2]),
+                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                    textColor = Color(0xFFF9FAFB),
+                                    backgroundColor = Color(0xFF111827),
+                                    focusedBorderColor = Color(0xFF06B6D4),
+                                    unfocusedBorderColor = Color(0xFF374151),
+                                    cursorColor = Color(0xFF06B6D4)
+                                ),
+                                singleLine = true
+                            )
+                        }
+                    }
+
+                    item {
+                        Text("Category Type", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
+                    }
+
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { selectedCategory = CategoryType.RAW_MATERIAL },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (selectedCategory == CategoryType.RAW_MATERIAL) Color(0xFF10B981) else Color.Black
+                                )
+                            ) {
+                                Text("Raw Material")
+                            }
+                            OutlinedButton(
+                                onClick = { selectedCategory = CategoryType.OTHER },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (selectedCategory == CategoryType.OTHER) Color(0xFF3B82F6) else Color.Black
+                                )
+                            ) {
+                                Text("Other")
+                            }
+                        }
+                    }
+                }
+
+                // Footer Buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = Color(0xFF9CA3AF))
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Button(
+                        onClick = {
+                            val finalUnit = if (selectedUnitType == "kg") "kg" else customUnit
+                            onSave(
+                                InventoryItem(
+                                    name = name,
+                                    quantity = quantity.toDoubleOrNull() ?: 0.0,
+                                    unit = finalUnit,
+                                    categoryType = selectedCategory
+                                )
+                            )
                         },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
-                        backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF06B6D4),
-                        unfocusedBorderColor = Color(0xFF374151),
-                        cursorColor = Color(0xFF06B6D4)
-                    ),
-                    singleLine = true
-                )
-
-                Text("Unit Type", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { selectedUnitType = "kg" },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selectedUnitType == "kg") Color(0xFF06B6D4) else Color.Black
+                        enabled = name.isNotBlank() && quantity.isNotBlank() && 
+                                 (selectedUnitType == "kg" || customUnit.isNotBlank()),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF06B6D4),
+                            disabledBackgroundColor = Color(0xFF9CA3AF)
                         )
                     ) {
-                        Text("kg")
-                    }
-                    OutlinedButton(
-                        onClick = { selectedUnitType = "other" },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selectedUnitType == "other") Color(0xFF06B6D4) else Color.Black
-                        )
-                    ) {
-                        Text("Other")
+                        Text("Add Item", color = Color(0xFF111827))
                     }
                 }
-
-                if (selectedUnitType == "other") {
-                    OutlinedTextField(
-                        value = customUnit,
-                        onValueChange = { customUnit = it },
-                        label = { Text("Specify Unit (e.g., metre, litre)", color = Color(0xFF9CA3AF)) },
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[2]),
-                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                            textColor = Color(0xFFF9FAFB),
-                            backgroundColor = Color(0xFF111827),
-                            focusedBorderColor = Color(0xFF06B6D4),
-                            unfocusedBorderColor = Color(0xFF374151),
-                            cursorColor = Color(0xFF06B6D4)
-                        ),
-                        singleLine = true
-                    )
-                }
-
-                Text("Category Type", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { selectedCategory = CategoryType.RAW_MATERIAL },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selectedCategory == CategoryType.RAW_MATERIAL) Color(0xFF10B981) else Color.Black
-                        )
-                    ) {
-                        Text("Raw Material")
-                    }
-                    OutlinedButton(
-                        onClick = { selectedCategory = CategoryType.OTHER },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selectedCategory == CategoryType.OTHER) Color(0xFF3B82F6) else Color.Black
-                        )
-                    ) {
-                        Text("Other")
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val finalUnit = if (selectedUnitType == "kg") "kg" else customUnit
-                    onSave(
-                        InventoryItem(
-                            name = name,
-                            quantity = quantity.toDoubleOrNull() ?: 0.0,
-                            unit = finalUnit,
-                            categoryType = selectedCategory
-                        )
-                    )
-                },
-                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF06B6D4))
-            ) {
-                Text("Add Item", color = Color(0xFF111827))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF9CA3AF))
             }
         }
-    )
+    }
 
     LaunchedEffect(Unit) {
         focusRequesters[0].requestFocus()
@@ -473,18 +629,53 @@ fun EditInventoryItemDialog(
 
     val focusRequesters = remember { List(3) { FocusRequester() } }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        backgroundColor = Color(0xFF1F2937),
-        title = {
-            Text("Edit Inventory Item", color = Color(0xFFF9FAFB), fontWeight = FontWeight.Bold)
-        },
-        text = {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .width(550.dp)
+                .height(600.dp),
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            elevation = 8.dp
+        ) {
             Column(
-                modifier = Modifier.width(500.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxSize()
             ) {
-                OutlinedTextField(
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Edit Inventory Item",
+                        color = Color(0xFFF9FAFB),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+
+                // Scrollable Content
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+                ) {
+                    item {
+                        OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Item Name", color = Color(0xFF9CA3AF)) },
@@ -502,112 +693,143 @@ fun EditInventoryItemDialog(
                         unfocusedBorderColor = Color(0xFF374151),
                         cursorColor = Color(0xFF06B6D4)
                     ),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = quantity,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) quantity = it },
-                    label = { Text("Quantity", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[1])
-                        .onKeyEvent { event ->
-                            if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
-                                focusRequesters[2].requestFocus()
-                                true
-                            } else false
-                        },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
-                        backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF06B6D4),
-                        unfocusedBorderColor = Color(0xFF374151),
-                        cursorColor = Color(0xFF06B6D4)
-                    ),
-                    singleLine = true
-                )
-
-                Text("Unit Type", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { selectedUnitType = "kg" },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selectedUnitType == "kg") Color(0xFF06B6D4) else Color.Black
-                        )
-                    ) {
-                        Text("kg")
-                    }
-                    OutlinedButton(
-                        onClick = { selectedUnitType = "other" },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selectedUnitType == "other") Color(0xFF06B6D4) else Color.Black
-                        )
-                    ) {
-                        Text("Other")
-                    }
-                }
-
-                if (selectedUnitType == "other") {
-                    OutlinedTextField(
-                        value = customUnit,
-                        onValueChange = { customUnit = it },
-                        label = { Text("Specify Unit (e.g., metre, litre)", color = Color(0xFF9CA3AF)) },
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[2]),
-                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                            textColor = Color(0xFFF9FAFB),
-                            backgroundColor = Color(0xFF111827),
-                            focusedBorderColor = Color(0xFF06B6D4),
-                            unfocusedBorderColor = Color(0xFF374151),
-                            cursorColor = Color(0xFF06B6D4)
-                        ),
                         singleLine = true
-                    )
+                )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = quantity,
+                            onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) quantity = it },
+                            label = { Text("Quantity", color = Color(0xFF9CA3AF)) },
+                            modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[1])
+                                .onKeyEvent { event ->
+                                    if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
+                                        focusRequesters[2].requestFocus()
+                                        true
+                                    } else false
+                                },
+                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                textColor = Color(0xFFF9FAFB),
+                                backgroundColor = Color(0xFF111827),
+                                focusedBorderColor = Color(0xFF06B6D4),
+                                unfocusedBorderColor = Color(0xFF374151),
+                                cursorColor = Color(0xFF06B6D4)
+                            ),
+                            singleLine = true
+                        )
+                    }
+
+                    item {
+                        Text("Unit Type", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
+                    }
+
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { selectedUnitType = "kg" },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (selectedUnitType == "kg") Color(0xFF06B6D4) else Color.Black
+                                )
+                            ) {
+                                Text("kg")
+                            }
+                            OutlinedButton(
+                                onClick = { selectedUnitType = "other" },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (selectedUnitType == "other") Color(0xFF06B6D4) else Color.Black
+                                )
+                            ) {
+                                Text("Other")
+                            }
+                        }
+                    }
+
+                    if (selectedUnitType == "other") {
+                        item {
+                            OutlinedTextField(
+                                value = customUnit,
+                                onValueChange = { customUnit = it },
+                                label = { Text("Specify Unit (e.g., metre, litre)", color = Color(0xFF9CA3AF)) },
+                                modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[2]),
+                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                    textColor = Color(0xFFF9FAFB),
+                                    backgroundColor = Color(0xFF111827),
+                                    focusedBorderColor = Color(0xFF06B6D4),
+                                    unfocusedBorderColor = Color(0xFF374151),
+                                    cursorColor = Color(0xFF06B6D4)
+                                ),
+                                singleLine = true
+                            )
+                        }
+                    }
+
+                    item {
+                        Text("Category Type", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
+                    }
+
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { selectedCategory = CategoryType.RAW_MATERIAL },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (selectedCategory == CategoryType.RAW_MATERIAL) Color(0xFF10B981) else Color.Black
+                                )
+                            ) {
+                                Text("Raw Material")
+                            }
+                            OutlinedButton(
+                                onClick = { selectedCategory = CategoryType.OTHER },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (selectedCategory == CategoryType.OTHER) Color(0xFF3B82F6) else Color.Black
+                                )
+                            ) {
+                                Text("Other")
+                            }
+                        }
+                    }
                 }
 
-                Text("Category Type", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { selectedCategory = CategoryType.RAW_MATERIAL },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selectedCategory == CategoryType.RAW_MATERIAL) Color(0xFF10B981) else Color.Black
-                        )
-                    ) {
-                        Text("Raw Material")
+                // Footer Buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = Color(0xFF9CA3AF))
                     }
-                    OutlinedButton(
-                        onClick = { selectedCategory = CategoryType.OTHER },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (selectedCategory == CategoryType.OTHER) Color(0xFF3B82F6) else Color.Black
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Button(
+                        onClick = {
+                            val finalUnit = if (selectedUnitType == "kg") "kg" else customUnit
+                            onSave(
+                                InventoryItem(
+                                    name = name,
+                                    quantity = quantity.toDoubleOrNull() ?: 0.0,
+                                    unit = finalUnit,
+                                    categoryType = selectedCategory
+                                )
+                            )
+                        },
+                        enabled = name.isNotBlank() && quantity.isNotBlank() && 
+                                 (selectedUnitType == "kg" || customUnit.isNotBlank()),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF06B6D4),
+                            disabledBackgroundColor = Color(0xFF9CA3AF)
                         )
                     ) {
-                        Text("Other")
+                        Text("Update Item", color = Color(0xFF111827))
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val finalUnit = if (selectedUnitType == "kg") "kg" else customUnit
-                    onSave(
-                        InventoryItem(
-                            name = name,
-                            quantity = quantity.toDoubleOrNull() ?: 0.0,
-                            unit = finalUnit,
-                            categoryType = selectedCategory
-                        )
-                    )
-                },
-                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF06B6D4))
-            ) {
-                Text("Update Item", color = Color(0xFF111827))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF9CA3AF))
             }
         }
-    )
+    }
 
     LaunchedEffect(Unit) {
         focusRequesters[0].requestFocus()

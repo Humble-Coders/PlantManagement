@@ -13,6 +13,9 @@ import kotlinx.coroutines.launch
 data class InventoryState(
     val items: List<InventoryItem> = emptyList(),
     val isLoading: Boolean = false,
+    val isAdding: Boolean = false,
+    val isUpdating: Boolean = false,
+    val isDeleting: Boolean = false,
     val error: String? = null,
     val successMessage: String? = null,
     val searchQuery: String = "",
@@ -50,18 +53,20 @@ class InventoryViewModel(
         }
 
         viewModelScope.launch {
-            inventoryState = inventoryState.copy(isLoading = true, error = null)
+            inventoryState = inventoryState.copy(isAdding = true, isLoading = true, error = null)
 
             val result = inventoryRepository.addInventoryItem(item)
 
             inventoryState = if (result.isSuccess) {
                 inventoryState.copy(
+                    isAdding = false,
                     isLoading = false,
                     successMessage = "Inventory item added successfully!",
                     error = null
                 )
             } else {
                 inventoryState.copy(
+                    isAdding = false,
                     isLoading = false,
                     error = result.exceptionOrNull()?.message ?: "Failed to add inventory item"
                 )
@@ -86,18 +91,20 @@ class InventoryViewModel(
         }
 
         viewModelScope.launch {
-            inventoryState = inventoryState.copy(isLoading = true, error = null)
+            inventoryState = inventoryState.copy(isUpdating = true, isLoading = true, error = null)
 
             val result = inventoryRepository.updateInventoryItem(itemId, item)
 
             inventoryState = if (result.isSuccess) {
                 inventoryState.copy(
+                    isUpdating = false,
                     isLoading = false,
                     successMessage = "Inventory item updated successfully!",
                     error = null
                 )
             } else {
                 inventoryState.copy(
+                    isUpdating = false,
                     isLoading = false,
                     error = result.exceptionOrNull()?.message ?: "Failed to update inventory item"
                 )
@@ -107,18 +114,20 @@ class InventoryViewModel(
 
     fun deleteInventoryItem(itemId: String) {
         viewModelScope.launch {
-            inventoryState = inventoryState.copy(isLoading = true, error = null)
+            inventoryState = inventoryState.copy(isDeleting = true, isLoading = true, error = null)
 
             val result = inventoryRepository.deleteInventoryItem(itemId)
 
             inventoryState = if (result.isSuccess) {
                 inventoryState.copy(
+                    isDeleting = false,
                     isLoading = false,
                     successMessage = "Inventory item deleted successfully!",
                     error = null
                 )
             } else {
                 inventoryState.copy(
+                    isDeleting = false,
                     isLoading = false,
                     error = result.exceptionOrNull()?.message ?: "Failed to delete inventory item"
                 )

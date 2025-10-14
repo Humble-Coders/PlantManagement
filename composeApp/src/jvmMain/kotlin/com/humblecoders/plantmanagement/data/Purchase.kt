@@ -17,6 +17,7 @@ data class Purchase(
     val paymentStatus: PaymentStatus = PaymentStatus.PENDING,
     val amountPaid: Double = 0.0,
     val notes: String = "",
+    val imageUrl: String = "",
     val status: TransactionStatus = TransactionStatus.APPROVED,
     val reversedAt: Timestamp? = null,
     val reversalReason: String = "",

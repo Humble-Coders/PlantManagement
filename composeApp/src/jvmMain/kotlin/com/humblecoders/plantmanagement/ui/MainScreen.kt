@@ -74,9 +74,9 @@ fun MainScreen(
         ) {
             when (selectedMenuItem) {
                 MenuItem.DASHBOARD -> DashboardContent()
-                MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel)
-                MenuItem.CUSTOMERS -> EntityScreen(entityViewModel)
-                MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel)
+                MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel, user?.role)
+                MenuItem.CUSTOMERS -> EntityScreen(entityViewModel, user?.role)
+                MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
             MenuItem.PROFILE -> ProfileContent(authViewModel)
                 else -> PlaceholderContent(selectedMenuItem.name)
             }
