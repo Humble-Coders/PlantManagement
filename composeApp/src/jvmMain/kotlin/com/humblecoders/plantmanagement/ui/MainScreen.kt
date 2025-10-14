@@ -19,11 +19,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
 
+data class MenuItemData(
+    val item: MenuItem,
+    val title: String,
+    val icon: ImageVector
+)
+
+// Update the MenuItem enum
 enum class MenuItem {
     DASHBOARD,
     PRODUCTION,
     INVENTORY,
-    PURCHASE,  // Add this
+    PURCHASE,
     SALE,
     PENDING_BILLS,
     CUSTOMERS,
@@ -35,18 +42,13 @@ enum class MenuItem {
     PROFILE
 }
 
-data class MenuItemData(
-    val item: MenuItem,
-    val title: String,
-    val icon: ImageVector
-)
-
+// Update MainScreen composable signature
 @Composable
 fun MainScreen(
     authViewModel: AuthViewModel,
     entityViewModel: com.humblecoders.plantmanagement.viewmodels.EntityViewModel,
-    purchaseViewModel: com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel  // Add this parameter
-
+    purchaseViewModel: com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel,
+    inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
     val authState = authViewModel.authState
@@ -57,14 +59,12 @@ fun MainScreen(
             .fillMaxSize()
             .background(Color(0xFF111827))
     ) {
-        // Sidebar Menu
         SidebarMenu(
             selectedItem = selectedMenuItem,
             onItemSelected = { selectedMenuItem = it },
             currentUserRole = user?.role?.name ?: "USER"
         )
 
-        // Main Content Area
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -74,9 +74,10 @@ fun MainScreen(
         ) {
             when (selectedMenuItem) {
                 MenuItem.DASHBOARD -> DashboardContent()
+                MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel)
                 MenuItem.CUSTOMERS -> EntityScreen(entityViewModel)
-                MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel)  // Add this
-                MenuItem.PROFILE -> ProfileContent(authViewModel)
+                MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel)
+            MenuItem.PROFILE -> ProfileContent(authViewModel)
                 else -> PlaceholderContent(selectedMenuItem.name)
             }
         }

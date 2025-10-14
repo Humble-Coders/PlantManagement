@@ -7,9 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.humblecoders.plantmanagement.data.*
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
+import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseSortField
 import com.humblecoders.plantmanagement.viewmodels.SortDirection
@@ -32,10 +31,12 @@ import com.humblecoders.plantmanagement.ui.components.DatePicker
 @Composable
 fun PurchaseScreen(
     purchaseViewModel: PurchaseViewModel,
-    entityViewModel: EntityViewModel
+    entityViewModel: EntityViewModel,
+    inventoryViewModel: InventoryViewModel
 ) {
     val purchaseState = purchaseViewModel.purchaseState
     val entityState = entityViewModel.entityState
+    val inventoryState = inventoryViewModel.inventoryState
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var purchaseToEdit by remember { mutableStateOf<Purchase?>(null) }
@@ -208,10 +209,10 @@ fun PurchaseScreen(
                                     Text("Date")
                                 }
                                 DropdownMenuItem(onClick = {
-                                    purchaseViewModel.updateSortBy(PurchaseSortField.CUSTOMER)
+                            purchaseViewModel.updateSortBy(PurchaseSortField.ENTITY)
                                     sortExpanded = false
                                 }) {
-                                    Text("Customer")
+                            Text("Entity")
                                 }
                                 DropdownMenuItem(onClick = {
                                     purchaseViewModel.updateSortBy(PurchaseSortField.STATUS)
@@ -259,6 +260,7 @@ fun PurchaseScreen(
     if (showAddDialog) {
         AddPurchaseDialog(
             customers = entityState.entities,
+            inventoryItems = inventoryState.items,
             onDismiss = { showAddDialog = false },
             onSave = { purchase ->
                 purchaseViewModel.addPurchase(purchase)
@@ -271,6 +273,7 @@ fun PurchaseScreen(
         EditPurchaseDialog(
             purchase = purchaseToEdit!!,
             customers = entityState.entities,
+            inventoryItems = inventoryState.items,
             onDismiss = {
                 showEditDialog = false
                 purchaseToEdit = null
@@ -294,8 +297,6 @@ fun PurchaseScreen(
     }
 }
 
-// Continue in PurchaseScreen.kt
-
 @Composable
 fun PurchaseTable(
     purchases: List<Purchase>,
@@ -311,13 +312,11 @@ fun PurchaseTable(
                 .padding(12.dp)
         ) {
             Text("Date", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Customer", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.18f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Item", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Qty", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.10f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Price/Unit", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Total", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Status", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Actions", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Entity", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.20f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Items", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.18f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Grand Total", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.15f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Status", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.15f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Actions", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.20f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         Divider(color = Color(0xFF374151))
@@ -331,11 +330,27 @@ fun PurchaseTable(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(purchase.purchaseDate, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.12f), fontSize = 14.sp)
-                Text(purchase.firmName, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.18f), fontSize = 14.sp)
-                Text(purchase.itemName, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.12f), fontSize = 14.sp)
-                Text("${String.format("%.2f", purchase.quantity)} ${purchase.unit}", color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.10f), fontSize = 14.sp)
-                Text("₹ ${String.format("%.2f", purchase.pricePerUnit)}", color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.12f), fontSize = 14.sp)
-                Text("₹ ${String.format("%.2f", purchase.totalAmount)}", color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.12f), fontSize = 14.sp)
+                Text(purchase.firmName, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.20f), fontSize = 14.sp)
+
+                Column(modifier = Modifier.weight(0.18f)) {
+                    purchase.items.take(2).forEach { item ->
+                        Text(
+                            "${item.itemName} (${String.format("%.2f", item.quantity)} ${item.unit})",
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (purchase.items.size > 2) {
+                        Text(
+                            "+${purchase.items.size - 2} more",
+                            color= Color(0xFF06B6D4),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Text("₹ ${String.format("%.2f", purchase.grandTotal)}", color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.15f), fontSize = 14.sp, fontWeight = FontWeight.Bold)
 
                 Text(
                     text = purchase.paymentStatus.name.replace("_", " "),
@@ -344,20 +359,20 @@ fun PurchaseTable(
                         PaymentStatus.PENDING -> Color(0xFFF59E0B)
                         PaymentStatus.PARTIALLY_PAID -> Color(0xFF3B82F6)
                     },
-                    modifier = Modifier.weight(0.12f),
+                    modifier = Modifier.weight(0.15f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
 
                 Row(
-                    modifier = Modifier.weight(0.12f),
+                    modifier = Modifier.weight(0.20f),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    TextButton(onClick = { onEditClick(purchase) }) {
-                        Text("Edit", color = Color(0xFF10B981), fontSize = 12.sp)
-                    }
                     TextButton(onClick = { onViewClick(purchase) }) {
                         Text("View", color = Color(0xFF3B82F6), fontSize = 12.sp)
+                    }
+                    TextButton(onClick = { onEditClick(purchase) }) {
+                        Text("Edit", color = Color(0xFF10B981), fontSize = 12.sp)
                     }
                     TextButton(onClick = { onDeleteClick(purchase) }) {
                         Text("Delete", color = Color(0xFFEF4444), fontSize = 12.sp)
@@ -381,20 +396,22 @@ fun PurchaseTable(
 @Composable
 fun AddPurchaseDialog(
     customers: List<Entity>,
+    inventoryItems: List<InventoryItem>,
     onDismiss: () -> Unit,
     onSave: (Purchase) -> Unit
 ) {
-    var selectedCustomerId by remember { mutableStateOf("") }
+    var selectedEntityId by remember { mutableStateOf("") }
     var purchaseDate by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)) }
-    var selectedItem by remember { mutableStateOf("RICE") }
-    var quantity by remember { mutableStateOf("") }
-    var pricePerUnit by remember { mutableStateOf("") }
-    var paymentStatus by remember { mutableStateOf(PaymentStatus.PENDING) }
+    var gstRate by remember { mutableStateOf(0.0) }
     var amountPaid by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    var purchaseItems by remember { mutableStateOf(listOf<PurchaseItem>()) }
 
-    val itemNames = listOf("RICE", "RICE1", "PREMIX", "PACKAGING", "OTHERS", "FORTIFIED RICE")
-    val focusRequesters = remember { List(6) { FocusRequester() } }
+    val totalAmount = purchaseItems.sumOf { it.totalPrice }
+    val gstAmount = totalAmount * (gstRate / 100.0)
+    val grandTotal = totalAmount + gstAmount
+    val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
+    val pendingAmount = grandTotal - paidAmount
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -403,38 +420,46 @@ fun AddPurchaseDialog(
             Text("Log New Purchase", color = Color(0xFFF9FAFB), fontWeight = FontWeight.Bold)
         },
         text = {
-            Column(
-                modifier = Modifier.width(600.dp).height(600.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                modifier = Modifier
+                    .width(700.dp)
+                    .height(750.dp)
             ) {
-                // Customer Dropdown
-                var customerExpanded by remember { mutableStateOf(false) }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(end = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                // Entity Dropdown
+                var entityExpanded by remember { mutableStateOf(false) }
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(
-                        onClick = { customerExpanded = true },
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[0]),
+                        onClick = { entityExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = Color.Black
                         )
                     ) {
                         Text(
-                            text = if (selectedCustomerId.isBlank()) "Select Customer"
-                            else customers.find { it.id == selectedCustomerId }?.firmName ?: "Select Customer",
+                            text = if (selectedEntityId.isBlank()) "Select Entity"
+                            else customers.find { it.id == selectedEntityId }?.firmName ?: "Select Entity",
                             modifier = Modifier.weight(1f)
                         )
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                     }
 
                     DropdownMenu(
-                        expanded = customerExpanded,
-                        onDismissRequest = { customerExpanded = false }
+                        expanded = entityExpanded,
+                        onDismissRequest = { entityExpanded = false }
                     ) {
-                        customers.forEach { customer ->
+                        customers.forEach { entity ->
                             DropdownMenuItem(onClick = {
-                                selectedCustomerId = customer.id
-                                customerExpanded = false
+                                selectedEntityId = entity.id
+                                entityExpanded = false
                             }) {
-                                Text(customer.firmName)
+                                Text(entity.firmName)
                             }
                         }
                     }
@@ -445,145 +470,188 @@ fun AddPurchaseDialog(
                     selectedDate = try { LocalDate.parse(purchaseDate) } catch (e: Exception) { LocalDate.now() },
                     onDateSelected = { date -> 
                         purchaseDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                        focusRequesters[2].requestFocus()
                     },
                     label = "Purchase Date",
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Item Name Dropdown
-                var itemExpanded by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { itemExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.Black
-                        )
-                    ) {
-                        Text(text = selectedItem, modifier = Modifier.weight(1f), color = Color.Black)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                    }
+                Divider(color = Color(0xFF374151))
 
-                    DropdownMenu(
-                        expanded = itemExpanded,
-                        onDismissRequest = { itemExpanded = false }
+                // Items Section
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Purchase Items",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF06B6D4)
+                    )
+                    Button(
+                        onClick = {
+                            purchaseItems = purchaseItems + PurchaseItem()
+                        },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981))
                     ) {
-                        itemNames.forEach { item ->
-                            DropdownMenuItem(onClick = {
-                                selectedItem = item
-                                itemExpanded = false
-                            }) {
-                                Text(item)
+                        Icon(Icons.Default.Add, contentDescription = "Add Item", tint = Color.White)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Item", color = Color.White, fontSize = 12.sp)
+                    }
+                }
+
+                // Items List
+                if (purchaseItems.isEmpty()) {
+                    Card(
+                        backgroundColor = Color(0xFF111827),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "No items added. Click 'Add Item' to start.",
+                            color = Color(0xFF9CA3AF),
+                            modifier = Modifier.padding(16.dp),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                purchaseItems.forEachIndexed { index, item ->
+                    PurchaseItemCard(
+                        item = item,
+                        index = index,
+                        inventoryItems = inventoryItems,
+                        onItemChanged = { updatedItem ->
+                            purchaseItems = purchaseItems.toMutableList().apply {
+                                set(index, updatedItem)
                             }
+                        },
+                        onRemove = {
+                            purchaseItems = purchaseItems.toMutableList().apply {
+                                removeAt(index)
+                            }
+                        }
+                    )
+                }
+
+                Divider(color = Color(0xFF374151))
+
+                // Total Amount Display
+                Card(
+                    backgroundColor = Color(0xFF111827),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Total Amount:", color = Color(0xFF9CA3AF), fontSize = 14.sp)
+                            Text("₹ ${String.format("%.2f", totalAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
                         }
                     }
                 }
 
-                // Quantity
-                OutlinedTextField(
-                    value = quantity,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) quantity = it },
-                    label = { Text("Quantity (kg)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[2])
-                        .onKeyEvent { event ->
-                            if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
-                                focusRequesters[3].requestFocus()
-                                true
-                            } else false
-                        },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
-                        backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF06B6D4),
-                        unfocusedBorderColor = Color(0xFF374151),
-                        cursorColor = Color(0xFF06B6D4)
-                    ),
-                    singleLine = true
-                )
+                // GST Selection
+                Text("GST Rate", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { gstRate = 0.0 },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (gstRate == 0.0) Color(0xFF06B6D4) else Color.Black
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("0%")
+                    }
+                    OutlinedButton(
+                        onClick = { gstRate = 5.0 },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (gstRate == 5.0) Color(0xFF06B6D4) else Color.Black
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("5%")
+                    }
+                    OutlinedButton(
+                        onClick = { gstRate = 18.0 },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (gstRate == 18.0) Color(0xFF06B6D4) else Color.Black
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("18%")
+                    }
+                }
 
-                // Price Per Unit
-                OutlinedTextField(
-                    value = pricePerUnit,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) pricePerUnit = it },
-                    label = { Text("Price Per Unit (₹)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[3])
-                        .onKeyEvent { event ->
-                            if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
-                                focusRequesters[4].requestFocus()
-                                true
-                            } else false
-                        },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
+                // GST Amount Display
+                if (gstRate > 0) {
+                    Card(
                         backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF06B6D4),
-                        unfocusedBorderColor = Color(0xFF374151),
-                        cursorColor = Color(0xFF06B6D4)
-                    ),
-                    singleLine = true
-                )
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("GST Amount (${gstRate.toInt()}%):", color = Color(0xFF9CA3AF), fontSize = 14.sp)
+                            Text("₹ ${String.format("%.2f", gstAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                        }
+                    }
+                }
 
-                // Total Amount Display
-                val totalAmount = (quantity.toDoubleOrNull() ?: 0.0) * (pricePerUnit.toDoubleOrNull() ?: 0.0)
+                // Grand Total Display
                 Card(
                     backgroundColor = Color(0xFF111827),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Total Amount:", color = Color(0xFF9CA3AF))
-                        Text("₹ ${String.format("%.2f", totalAmount)}", color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold)
+                        Text("Grand Total:", color = Color(0xFF9CA3AF), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("₹ ${String.format("%.2f", grandTotal)}", color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
                 }
 
-                // Payment Status
-                Text("Payment Status", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { paymentStatus = PaymentStatus.PENDING },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (paymentStatus == PaymentStatus.PENDING) Color(0xFFF59E0B) else Color.Black
-                        )
-                    ) {
-                        Text("Pending")
-                    }
-                    OutlinedButton(
-                        onClick = { paymentStatus = PaymentStatus.PAID },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (paymentStatus == PaymentStatus.PAID) Color(0xFF10B981) else Color.Black
-                        )
-                    ) {
-                        Text("Paid")
-                    }
-                    OutlinedButton(
-                        onClick = { paymentStatus = PaymentStatus.PARTIALLY_PAID },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (paymentStatus == PaymentStatus.PARTIALLY_PAID) Color(0xFF3B82F6) else Color.Black
-                        )
-                    ) {
-                        Text("Partially Paid")
-                    }
-                }
+                // Amount Paid
+                OutlinedTextField(
+                    value = amountPaid,
+                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) amountPaid = it },
+                    label = { Text("Amount Paid (₹)", color = Color(0xFF9CA3AF)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        textColor = Color(0xFFF9FAFB),
+                        backgroundColor = Color(0xFF111827),
+                        focusedBorderColor = Color(0xFF06B6D4),
+                        unfocusedBorderColor = Color(0xFF374151),
+                        cursorColor = Color(0xFF06B6D4)
+                    ),
+                    singleLine = true
+                )
 
-                // Amount Paid (if Partially Paid)
-                if (paymentStatus == PaymentStatus.PARTIALLY_PAID) {
-                    OutlinedTextField(
-                        value = amountPaid,
-                        onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) amountPaid = it },
-                        label = { Text("Amount Paid (₹)", color = Color(0xFF9CA3AF)) },
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[4]),
-                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                            textColor = Color(0xFFF9FAFB),
-                            backgroundColor = Color(0xFF111827),
-                            focusedBorderColor = Color(0xFF06B6D4),
-                            unfocusedBorderColor = Color(0xFF374151),
-                            cursorColor = Color(0xFF06B6D4)
-                        ),
-                        singleLine = true
-                    )
+                // Pending/Credit Amount Display
+                Card(
+                    backgroundColor = Color(0xFF111827),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            if (pendingAmount >= 0) "Pending Amount:" else "Credit Amount:",
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "₹ ${String.format("%.2f", kotlin.math.abs(pendingAmount))}",
+                            color = if (pendingAmount >= 0) Color(0xFFF59E0B) else Color(0xFF10B981),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
                 }
 
                 // Notes
@@ -591,7 +659,7 @@ fun AddPurchaseDialog(
                     value = notes,
                     onValueChange = { notes = it },
                     label = { Text("Notes (optional)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().height(100.dp).focusRequester(focusRequesters[5]),
+                    modifier = Modifier.fillMaxWidth().height(100.dp),
                     colors = TextFieldDefaults.outlinedTextFieldColors(
                         textColor = Color(0xFFF9FAFB),
                         backgroundColor = Color(0xFF111827),
@@ -601,31 +669,32 @@ fun AddPurchaseDialog(
                     ),
                     maxLines = 3
                 )
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val selectedCustomer = customers.find { it.id == selectedCustomerId }
-                    val qtyValue = quantity.toDoubleOrNull() ?: 0.0
-                    val priceValue = pricePerUnit.toDoubleOrNull() ?: 0.0
-                    val totalValue = qtyValue * priceValue
-                    val paidAmount = when (paymentStatus) {
-                        PaymentStatus.PAID -> totalValue
-                        PaymentStatus.PARTIALLY_PAID -> amountPaid.toDoubleOrNull() ?: 0.0
-                        else -> 0.0
+                    val selectedEntity = customers.find { it.id == selectedEntityId }
+                    val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
+                    
+                    // Auto-calculate payment status
+                    val paymentStatus = when {
+                        paidAmount >= grandTotal -> PaymentStatus.PAID
+                        paidAmount > 0 -> PaymentStatus.PARTIALLY_PAID
+                        else -> PaymentStatus.PENDING
                     }
 
                     onSave(
                         Purchase(
-                            customerId = selectedCustomerId,
-                            firmName = selectedCustomer?.firmName ?: "",
+                            customerId = selectedEntityId,
+                            firmName = selectedEntity?.firmName ?: "",
                             purchaseDate = purchaseDate,
-                            itemName = selectedItem,
-                            quantity = qtyValue,
-                            unit = "kg",
-                            pricePerUnit = priceValue,
-                            totalAmount = totalValue,
+                            items = purchaseItems,
+                            totalAmount = totalAmount,
+                            gstRate = gstRate,
+                            gstAmount = gstAmount,
+                            grandTotal = grandTotal,
                             paymentStatus = paymentStatus,
                             amountPaid = paidAmount,
                             notes = notes
@@ -643,9 +712,136 @@ fun AddPurchaseDialog(
             }
         }
     )
+}
 
-    LaunchedEffect(Unit) {
-        focusRequesters[0].requestFocus()
+@Composable
+fun PurchaseItemCard(
+    item: PurchaseItem,
+    index: Int,
+    inventoryItems: List<InventoryItem>,
+    onItemChanged: (PurchaseItem) -> Unit,
+    onRemove: () -> Unit
+) {
+    var selectedInventoryItemId by remember { mutableStateOf(item.inventoryItemId) }
+    var quantity by remember { mutableStateOf(if (item.quantity > 0) item.quantity.toString() else "") }
+    var pricePerUnit by remember { mutableStateOf(if (item.pricePerUnit > 0) item.pricePerUnit.toString() else "") }
+
+    val selectedInventoryItem = inventoryItems.find { it.id == selectedInventoryItemId }
+    val totalPrice = (quantity.toDoubleOrNull() ?: 0.0) * (pricePerUnit.toDoubleOrNull() ?: 0.0)
+
+    LaunchedEffect(selectedInventoryItemId, quantity, pricePerUnit) {
+        if (selectedInventoryItem != null) {
+            onItemChanged(
+                PurchaseItem(
+                    inventoryItemId = selectedInventoryItemId,
+                    itemName = selectedInventoryItem.name,
+                    quantity = quantity.toDoubleOrNull() ?: 0.0,
+                    unit = selectedInventoryItem.unit,
+                    pricePerUnit = pricePerUnit.toDoubleOrNull() ?: 0.0,
+                    totalPrice = totalPrice
+                )
+            )
+        }
+    }
+
+    Card(
+        backgroundColor = Color(0xFF111827),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                        modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                    "Item ${index + 1}",
+                    color = Color(0xFF06B6D4),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color(0xFFEF4444))
+                }
+            }
+
+            // Inventory Item Dropdown
+                var itemExpanded by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { itemExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color.Black
+                        )
+                    ) {
+                    Text(
+                        text = selectedInventoryItem?.name ?: "Select Item",
+                        modifier = Modifier.weight(1f),
+                        color = Color.Black
+                    )
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                    }
+
+                    DropdownMenu(
+                        expanded = itemExpanded,
+                        onDismissRequest = { itemExpanded = false }
+                    ) {
+                    inventoryItems.forEach { invItem ->
+                            DropdownMenuItem(onClick = {
+                            selectedInventoryItemId = invItem.id
+                                itemExpanded = false
+                            }) {
+                            Text("${invItem.name} (${invItem.unit})")
+                            }
+                        }
+                    }
+                }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = quantity,
+                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) quantity = it },
+                    label = { Text("Quantity (${selectedInventoryItem?.unit ?: "unit"})", color = Color(0xFF9CA3AF), fontSize = 11.sp) },
+                    modifier = Modifier.weight(1f),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        textColor = Color(0xFFF9FAFB),
+                        backgroundColor = Color(0xFF1F2937),
+                        focusedBorderColor = Color(0xFF06B6D4),
+                        unfocusedBorderColor = Color(0xFF374151),
+                        cursorColor = Color(0xFF06B6D4)
+                    ),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = pricePerUnit,
+                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) pricePerUnit = it },
+                    label = { Text("Price/Unit (₹)", color = Color(0xFF9CA3AF), fontSize = 11.sp) },
+                    modifier = Modifier.weight(1f),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        textColor = Color(0xFFF9FAFB),
+                        backgroundColor = Color(0xFF1F2937),
+                        focusedBorderColor = Color(0xFF06B6D4),
+                        unfocusedBorderColor = Color(0xFF374151),
+                        cursorColor = Color(0xFF06B6D4)
+                    ),
+                    singleLine = true
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                Text("Item Total:", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+                Text("₹ ${String.format("%.2f", totalPrice)}", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
     }
 }
 
@@ -653,20 +849,22 @@ fun AddPurchaseDialog(
 fun EditPurchaseDialog(
     purchase: Purchase,
     customers: List<Entity>,
+    inventoryItems: List<InventoryItem>,
     onDismiss: () -> Unit,
     onSave: (Purchase) -> Unit
 ) {
-    var selectedCustomerId by remember { mutableStateOf(purchase.customerId) }
+    var selectedEntityId by remember { mutableStateOf(purchase.customerId) }
     var purchaseDate by remember { mutableStateOf(purchase.purchaseDate) }
-    var selectedItem by remember { mutableStateOf(purchase.itemName) }
-    var quantity by remember { mutableStateOf(purchase.quantity.toString()) }
-    var pricePerUnit by remember { mutableStateOf(purchase.pricePerUnit.toString()) }
-    var paymentStatus by remember { mutableStateOf(purchase.paymentStatus) }
+    var gstRate by remember { mutableStateOf(purchase.gstRate) }
     var amountPaid by remember { mutableStateOf(purchase.amountPaid.toString()) }
     var notes by remember { mutableStateOf(purchase.notes) }
+    var purchaseItems by remember { mutableStateOf(purchase.items) }
 
-    val itemNames = listOf("RICE", "RICE1", "PREMIX", "PACKAGING", "OTHERS", "FORTIFIED RICE")
-    val focusRequesters = remember { List(6) { FocusRequester() } }
+    val totalAmount = purchaseItems.sumOf { it.totalPrice }
+    val gstAmount = totalAmount * (gstRate / 100.0)
+    val grandTotal = totalAmount + gstAmount
+    val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
+    val pendingAmount = grandTotal - paidAmount
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -675,15 +873,22 @@ fun EditPurchaseDialog(
             Text("Edit Purchase", color = Color(0xFFF9FAFB), fontWeight = FontWeight.Bold)
         },
         text = {
-            Column(
-                modifier = Modifier.width(600.dp).height(600.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                modifier = Modifier
+                    .width(700.dp)
+                    .height(750.dp)
             ) {
-                // Customer Dropdown (Disabled in edit)
-                var customerExpanded by remember { mutableStateOf(false) }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(end = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                // Entity Dropdown (Disabled)
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(
-                        onClick = { customerExpanded = true },
+                        onClick = { },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = false,
                         colors = ButtonDefaults.outlinedButtonColors(
@@ -692,7 +897,7 @@ fun EditPurchaseDialog(
                         )
                     ) {
                         Text(
-                            text = customers.find { it.id == selectedCustomerId }?.firmName ?: "Select Customer",
+                            text = customers.find { it.id == selectedEntityId }?.firmName ?: "Select Entity",
                             modifier = Modifier.weight(1f)
                         )
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null)
@@ -704,136 +909,141 @@ fun EditPurchaseDialog(
                     selectedDate = try { LocalDate.parse(purchaseDate) } catch (e: Exception) { LocalDate.now() },
                     onDateSelected = { date -> 
                         purchaseDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                        focusRequesters[1].requestFocus()
                     },
                     label = "Purchase Date",
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Item Name Dropdown
-                var itemExpanded by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { itemExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.Black
-                        )
-                    ) {
-                        Text(text = selectedItem, modifier = Modifier.weight(1f), color = Color.Black)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                    }
+                Divider(color = Color(0xFF374151))
 
-                    DropdownMenu(
-                        expanded = itemExpanded,
-                        onDismissRequest = { itemExpanded = false }
+                // Items Section
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Purchase Items",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF06B6D4)
+                    )
+                    Button(
+                        onClick = {
+                            purchaseItems = purchaseItems + PurchaseItem()
+                        },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981))
                     ) {
-                        itemNames.forEach { item ->
-                            DropdownMenuItem(onClick = {
-                                selectedItem = item
-                                itemExpanded = false
-                            }) {
-                                Text(item)
+                        Icon(Icons.Default.Add, contentDescription = "Add Item", tint = Color.White)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Item", color = Color.White, fontSize = 12.sp)
+                    }
+                }
+
+                purchaseItems.forEachIndexed { index, item ->
+                    PurchaseItemCard(
+                        item = item,
+                        index = index,
+                        inventoryItems = inventoryItems,
+                        onItemChanged = { updatedItem ->
+                            purchaseItems = purchaseItems.toMutableList().apply {
+                                set(index, updatedItem)
                             }
+                        },
+                        onRemove = {
+                            purchaseItems = purchaseItems.toMutableList().apply {
+                                removeAt(index)
+                            }
+                        }
+                    )
+                }
+
+                Divider(color = Color(0xFF374151))
+
+                // Total Amount Display
+                Card(
+                    backgroundColor = Color(0xFF111827),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                            modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                            Text("Total Amount:", color = Color(0xFF9CA3AF), fontSize = 14.sp)
+                            Text("₹ ${String.format("%.2f", totalAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
                         }
                     }
                 }
 
-                // Quantity
-                OutlinedTextField(
-                    value = quantity,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) quantity = it },
-                    label = { Text("Quantity (kg)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[1])
-                        .onKeyEvent { event ->
-                            if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
-                                focusRequesters[2].requestFocus()
-                                true
-                            } else false
-                        },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
-                        backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF06B6D4),
-                        unfocusedBorderColor = Color(0xFF374151),
-                        cursorColor = Color(0xFF06B6D4)
-                    ),
-                    singleLine = true
-                )
+                // GST Selection
+                Text("GST Rate", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { gstRate = 0.0 },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (gstRate == 0.0) Color(0xFF06B6D4) else Color.Black
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("0%")
+                    }
+                    OutlinedButton(
+                        onClick = { gstRate = 5.0 },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (gstRate == 5.0) Color(0xFF06B6D4) else Color.Black
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("5%")
+                    }
+                    OutlinedButton(
+                        onClick = { gstRate = 18.0 },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (gstRate == 18.0) Color(0xFF06B6D4) else Color.Black
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("18%")
+                    }
+                }
 
-                // Price Per Unit
-                OutlinedTextField(
-                    value = pricePerUnit,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) pricePerUnit = it },
-                    label = { Text("Price Per Unit (₹)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[2])
-                        .onKeyEvent { event ->
-                            if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
-                                focusRequesters[3].requestFocus()
-                                true
-                            } else false
-                        },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
+                // GST Amount Display
+                if (gstRate > 0) {
+                    Card(
                         backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF06B6D4),
-                        unfocusedBorderColor = Color(0xFF374151),
-                        cursorColor = Color(0xFF06B6D4)
-                    ),
-                    singleLine = true
-                )
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("GST Amount (${gstRate.toInt()}%):", color = Color(0xFF9CA3AF), fontSize = 14.sp)
+                            Text("₹ ${String.format("%.2f", gstAmount)}", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                        }
+                    }
+                }
 
-                // Total Amount Display
-                val totalAmount = (quantity.toDoubleOrNull() ?: 0.0) * (pricePerUnit.toDoubleOrNull() ?: 0.0)
+                // Grand Total Display
                 Card(
                     backgroundColor = Color(0xFF111827),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Total Amount:", color = Color(0xFF9CA3AF))
-                        Text("₹ ${String.format("%.2f", totalAmount)}", color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                // Payment Status
-                Text("Payment Status", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { paymentStatus = PaymentStatus.PENDING },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (paymentStatus == PaymentStatus.PENDING) Color(0xFFF59E0B) else Color.Black
-                        )
-                    ) {
-                        Text("Pending")
-                    }
-                    OutlinedButton(
-                        onClick = { paymentStatus = PaymentStatus.PAID },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (paymentStatus == PaymentStatus.PAID) Color(0xFF10B981) else Color.Black
-                        )
-                    ) {
-                        Text("Paid")
-                    }
-                    OutlinedButton(
-                        onClick = { paymentStatus = PaymentStatus.PARTIALLY_PAID },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (paymentStatus == PaymentStatus.PARTIALLY_PAID) Color(0xFF3B82F6) else Color.Black
-                        )
-                    ) {
-                        Text("Partially Paid")
+                        Text("Grand Total:", color = Color(0xFF9CA3AF), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("₹ ${String.format("%.2f", grandTotal)}", color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
                 }
 
                 // Amount Paid
-                if (paymentStatus == PaymentStatus.PARTIALLY_PAID) {
                     OutlinedTextField(
                         value = amountPaid,
                         onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) amountPaid = it },
                         label = { Text("Amount Paid (₹)", color = Color(0xFF9CA3AF)) },
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[3]),
+                    modifier = Modifier.fillMaxWidth(),
                         colors = TextFieldDefaults.outlinedTextFieldColors(
                             textColor = Color(0xFFF9FAFB),
                             backgroundColor = Color(0xFF111827),
@@ -842,7 +1052,30 @@ fun EditPurchaseDialog(
                             cursorColor = Color(0xFF06B6D4)
                         ),
                         singleLine = true
-                    )
+                )
+
+                // Pending/Credit Amount Display
+                Card(
+                    backgroundColor = Color(0xFF111827),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            if (pendingAmount >= 0) "Pending Amount:" else "Credit Amount:",
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "₹ ${String.format("%.2f", kotlin.math.abs(pendingAmount))}",
+                            color = if (pendingAmount >= 0) Color(0xFFF59E0B) else Color(0xFF10B981),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
                 }
 
                 // Notes
@@ -850,7 +1083,7 @@ fun EditPurchaseDialog(
                     value = notes,
                     onValueChange = { notes = it },
                     label = { Text("Notes (optional)", color = Color(0xFF9CA3AF)) },
-                    modifier = Modifier.fillMaxWidth().height(100.dp).focusRequester(focusRequesters[4]),
+                    modifier = Modifier.fillMaxWidth().height(100.dp),
                     colors = TextFieldDefaults.outlinedTextFieldColors(
                         textColor = Color(0xFFF9FAFB),
                         backgroundColor = Color(0xFF111827),
@@ -860,31 +1093,32 @@ fun EditPurchaseDialog(
                     ),
                     maxLines = 3
                 )
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val selectedCustomer = customers.find { it.id == selectedCustomerId }
-                    val qtyValue = quantity.toDoubleOrNull() ?: 0.0
-                    val priceValue = pricePerUnit.toDoubleOrNull() ?: 0.0
-                    val totalValue = qtyValue * priceValue
-                    val paidAmount = when (paymentStatus) {
-                        PaymentStatus.PAID -> totalValue
-                        PaymentStatus.PARTIALLY_PAID -> amountPaid.toDoubleOrNull() ?: 0.0
-                        else -> 0.0
+                    val selectedEntity = customers.find { it.id == selectedEntityId }
+                    val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
+                    
+                    // Auto-calculate payment status
+                    val paymentStatus = when {
+                        paidAmount >= grandTotal -> PaymentStatus.PAID
+                        paidAmount > 0 -> PaymentStatus.PARTIALLY_PAID
+                        else -> PaymentStatus.PENDING
                     }
 
                     onSave(
                         Purchase(
-                            customerId = selectedCustomerId,
-                            firmName = selectedCustomer?.firmName ?: purchase.firmName,
+                            customerId = selectedEntityId,
+                            firmName = selectedEntity?.firmName ?: purchase.firmName,
                             purchaseDate = purchaseDate,
-                            itemName = selectedItem,
-                            quantity = qtyValue,
-                            unit = "kg",
-                            pricePerUnit = priceValue,
-                            totalAmount = totalValue,
+                            items = purchaseItems,
+                            totalAmount = totalAmount,
+                            gstRate = gstRate,
+                            gstAmount = gstAmount,
+                            grandTotal = grandTotal,
                             paymentStatus = paymentStatus,
                             amountPaid = paidAmount,
                             notes = notes
@@ -902,10 +1136,6 @@ fun EditPurchaseDialog(
             }
         }
     )
-
-    LaunchedEffect(Unit) {
-        focusRequesters[0].requestFocus()
-    }
 }
 
 @Composable
@@ -921,7 +1151,7 @@ fun ViewPurchaseDialog(
         },
         text = {
             Column(
-                modifier = Modifier.width(500.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.width(600.dp).height(600.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Card(
@@ -929,12 +1159,68 @@ fun ViewPurchaseDialog(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Purchase Information", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                        Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
                         DetailRow("Purchase Date", purchase.purchaseDate)
-                        DetailRow("Customer", purchase.firmName)
-                        DetailRow("Item", purchase.itemName)
-                        DetailRow("Quantity", "${String.format("%.2f", purchase.quantity)} ${purchase.unit}")
-                        DetailRow("Price Per Unit", "₹ ${String.format("%.2f", purchase.pricePerUnit)}")
+                        DetailRow("Entity", purchase.firmName)
+                    }
+                }
+
+                Card(
+                    backgroundColor = Color(0xFF111827),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Items Purchased", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                        Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+
+                        purchase.items.forEach { item ->
+                            Card(
+                                backgroundColor = Color(0xFF1F2937),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(item.itemName, color = Color(0xFF06B6D4), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Quantity:", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+                                        Text("${String.format("%.2f", item.quantity)} ${item.unit}", color = Color(0xFFF9FAFB), fontSize = 12.sp)
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Price/Unit:", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+                                        Text("₹ ${String.format("%.2f", item.pricePerUnit)}", color = Color(0xFFF9FAFB), fontSize = 12.sp)
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Total:", color = Color(0xFF9CA3AF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text("₹ ${String.format("%.2f", item.totalPrice)}", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                    }
+                }
+
+                Card(
+                    backgroundColor = Color(0xFF111827),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Payment Details", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                        Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
                         DetailRow("Total Amount", "₹ ${String.format("%.2f", purchase.totalAmount)}")
+                        if (purchase.gstRate > 0) {
+                            DetailRow("GST (${purchase.gstRate.toInt()}%)", "₹ ${String.format("%.2f", purchase.gstAmount)}")
+                        }
+                        DetailRow("Grand Total", "₹ ${String.format("%.2f", purchase.grandTotal)}", valueColor = Color(0xFF06B6D4))
                         DetailRow(
                             "Payment Status",
                             purchase.paymentStatus.name.replace("_", " "),
@@ -944,12 +1230,21 @@ fun ViewPurchaseDialog(
                                 PaymentStatus.PARTIALLY_PAID -> Color(0xFF3B82F6)
                             }
                         )
-                        if (purchase.paymentStatus == PaymentStatus.PARTIALLY_PAID) {
-                            DetailRow("Amount Paid", "₹ ${String.format("%.2f", purchase.amountPaid)}")
+                        DetailRow("Amount Paid", "₹ ${String.format("%.2f", purchase.amountPaid)}")
+                        if (purchase.grandTotal - purchase.amountPaid > 0) {
+                            DetailRow("Balance", "₹ ${String.format("%.2f", purchase.grandTotal - purchase.amountPaid)}", valueColor = Color(0xFFEF4444))
                         }
+                    }
+                }
+
                         if (purchase.notes.isNotBlank()) {
+                    Card(
+                        backgroundColor = Color(0xFF111827),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Notes", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
                             Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
-                            Text("Notes:", color = Color(0xFF9CA3AF), fontSize = 12.sp)
                             Text(purchase.notes, color = Color(0xFFF9FAFB), fontSize = 14.sp)
                         }
                     }

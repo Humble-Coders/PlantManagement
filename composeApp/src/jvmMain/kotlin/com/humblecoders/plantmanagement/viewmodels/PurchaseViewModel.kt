@@ -25,7 +25,7 @@ data class PurchaseState(
 
 enum class PurchaseSortField {
     DATE,
-    CUSTOMER,
+    ENTITY,
     STATUS
 }
 
@@ -45,17 +45,22 @@ class PurchaseViewModel(
 
     fun addPurchase(purchase: Purchase) {
         if (purchase.customerId.isBlank()) {
-            purchaseState = purchaseState.copy(error = "Please select a customer")
+            purchaseState = purchaseState.copy(error = "Please select an entity")
             return
         }
 
-        if (purchase.quantity <= 0) {
-            purchaseState = purchaseState.copy(error = "Quantity must be greater than 0")
+        if (purchase.items.isEmpty()) {
+            purchaseState = purchaseState.copy(error = "Please add at least one item")
             return
         }
 
-        if (purchase.pricePerUnit <= 0) {
-            purchaseState = purchaseState.copy(error = "Price per unit must be greater than 0")
+        if (purchase.items.any { it.quantity <= 0 }) {
+            purchaseState = purchaseState.copy(error = "All item quantities must be greater than 0")
+            return
+        }
+
+        if (purchase.items.any { it.pricePerUnit <= 0 }) {
+            purchaseState = purchaseState.copy(error = "All item prices must be greater than 0")
             return
         }
 
@@ -80,13 +85,18 @@ class PurchaseViewModel(
     }
 
     fun updatePurchase(purchaseId: String, purchase: Purchase) {
-        if (purchase.quantity <= 0) {
-            purchaseState = purchaseState.copy(error = "Quantity must be greater than 0")
+        if (purchase.items.isEmpty()) {
+            purchaseState = purchaseState.copy(error = "Please add at least one item")
             return
         }
 
-        if (purchase.pricePerUnit <= 0) {
-            purchaseState = purchaseState.copy(error = "Price per unit must be greater than 0")
+        if (purchase.items.any { it.quantity <= 0 }) {
+            purchaseState = purchaseState.copy(error = "All item quantities must be greater than 0")
+            return
+        }
+
+        if (purchase.items.any { it.pricePerUnit <= 0 }) {
+            purchaseState = purchaseState.copy(error = "All item prices must be greater than 0")
             return
         }
 
@@ -95,18 +105,18 @@ class PurchaseViewModel(
 
             val result = purchaseRepository.updatePurchase(purchaseId, purchase)
 
-            purchaseState = (if (result.isSuccess) {
+            purchaseState = if (result.isSuccess) {
                 purchaseState.copy(
                     isLoading = false,
                     successMessage = "Purchase updated successfully!",
                     error = null
                 )
             } else {
-                purchaseState = purchaseState.copy(
+                purchaseState.copy(
                     isLoading = false,
                     error = result.exceptionOrNull()?.message ?: "Failed to update purchase"
                 )
-            }) as PurchaseState
+            }
         }
     }
 
@@ -182,7 +192,7 @@ class PurchaseViewModel(
             val query = purchaseState.searchQuery.lowercase()
             val textMatch = purchase.firmName.lowercase().contains(query) ||
                     purchase.purchaseDate.lowercase().contains(query) ||
-                    purchase.itemName.lowercase().contains(query)
+                    purchase.items.any { it.itemName.lowercase().contains(query) }
 
             val dateMatch = if (purchaseState.filterDateFrom.isNotBlank() || purchaseState.filterDateTo.isNotBlank()) {
                 val purchaseDate = try {
@@ -227,7 +237,7 @@ class PurchaseViewModel(
                     filtered.sortedByDescending { it.purchaseDate }
                 }
             }
-            PurchaseSortField.CUSTOMER -> {
+            PurchaseSortField.ENTITY -> {
                 if (purchaseState.sortDirection == SortDirection.ASCENDING) {
                     filtered.sortedBy { it.firmName }
                 } else {

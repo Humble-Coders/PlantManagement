@@ -17,13 +17,12 @@ enum class Screen {
 fun AppNavigation(
     authViewModel: AuthViewModel,
     entityViewModel: com.humblecoders.plantmanagement.viewmodels.EntityViewModel,
-    purchaseViewModel: PurchaseViewModel
-
+    purchaseViewModel: PurchaseViewModel,
+    inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 ) {
     val authState = authViewModel.authState
     var currentScreen by remember { mutableStateOf(Screen.LOGIN) }
 
-    // Navigate to main screen when authenticated
     LaunchedEffect(authState.isAuthenticated) {
         if (authState.isAuthenticated) {
             currentScreen = Screen.MAIN
@@ -51,7 +50,8 @@ fun AppNavigation(
             MainScreen(
                 authViewModel = authViewModel,
                 entityViewModel = entityViewModel,
-                purchaseViewModel = purchaseViewModel
+                purchaseViewModel = purchaseViewModel,
+                inventoryViewModel = inventoryViewModel
             )
         }
     }
