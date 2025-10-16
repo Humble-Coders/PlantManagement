@@ -280,10 +280,10 @@ class PurchaseViewModel(
     }
     
     /**
-     * Calculate automatic cash out allocations
+     * Calculate automatic cash out allocations for a specific customer
      */
-    suspend fun calculateCashOutAllocations(cashOutAmount: Double): List<PurchaseAllocation> {
-        val pendingPurchases = cashOutRepository.getPendingPurchases()
+    suspend fun calculateCashOutAllocations(cashOutAmount: Double, customerId: String): List<PurchaseAllocation> {
+        val pendingPurchases = cashOutRepository.getPendingPurchases(customerId)
         val allocations = mutableListOf<PurchaseAllocation>()
         var remainingAmount = cashOutAmount
         
@@ -306,6 +306,7 @@ class PurchaseViewModel(
                     firmName = purchase.firmName,
                     purchaseDate = purchase.purchaseDate,
                     customerId = purchase.customerId,
+                    grandTotal = purchase.grandTotal,
                     allocatedAmount = allocationAmount,
                     previousAmountPaid = purchase.amountPaid,
                     newAmountPaid = newAmountPaid,

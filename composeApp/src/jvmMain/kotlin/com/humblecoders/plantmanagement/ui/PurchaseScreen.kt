@@ -426,6 +426,7 @@ fun PurchaseScreen(
     if (showCashOutDialog) {
         com.humblecoders.plantmanagement.ui.components.CashOutDialog(
             purchaseViewModel = purchaseViewModel,
+            entityViewModel = entityViewModel,
             onDismiss = { showCashOutDialog = false }
         )
     }
@@ -454,11 +455,12 @@ fun PurchaseTable(
                 .background(Color(0xFF374151))
                 .padding(12.dp)
         ) {
-            Text("Date", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Entity", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.20f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Items", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.18f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Grand Total", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.15f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Status", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.15f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Date", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.10f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Entity", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.18f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Items", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.16f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Grand Total", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Pending", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Status", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Actions", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.20f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
@@ -472,10 +474,10 @@ fun PurchaseTable(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(purchase.purchaseDate, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.12f), fontSize = 14.sp)
-                Text(purchase.firmName, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.20f), fontSize = 14.sp)
+                Text(purchase.purchaseDate, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.10f), fontSize = 14.sp)
+                Text(purchase.firmName, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.18f), fontSize = 14.sp)
 
-                Column(modifier = Modifier.weight(0.18f)) {
+                Column(modifier = Modifier.weight(0.16f)) {
                     purchase.items.take(2).forEach { item ->
                         Text(
                             "${item.itemName} (${String.format("%.2f", item.quantity)} ${item.unit})",
@@ -493,7 +495,26 @@ fun PurchaseTable(
                     }
                 }
 
-                Text("₹ ${String.format("%.2f", purchase.grandTotal)}", color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.15f), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("₹ ${String.format("%.2f", purchase.grandTotal)}", color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.12f), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+
+                // Pending Amount Column
+                val pendingAmount = purchase.grandTotal - purchase.amountPaid
+                if (purchase.paymentStatus == PaymentStatus.PARTIALLY_PAID || purchase.paymentStatus == PaymentStatus.PENDING) {
+                    Text(
+                        "₹ ${String.format("%.2f", pendingAmount)}",
+                        color = Color(0xFFFBBF24),
+                        modifier = Modifier.weight(0.12f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                } else {
+                    Text(
+                        "-",
+                        color = Color(0xFF6B7280),
+                        modifier = Modifier.weight(0.12f),
+                        fontSize = 13.sp
+                    )
+                }
 
                 Text(
                     text = purchase.paymentStatus.name.replace("_", " "),
@@ -502,7 +523,7 @@ fun PurchaseTable(
                         PaymentStatus.PENDING -> Color(0xFFF59E0B)
                         PaymentStatus.PARTIALLY_PAID -> Color(0xFF3B82F6)
                     },
-                    modifier = Modifier.weight(0.15f),
+                    modifier = Modifier.weight(0.12f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -519,7 +540,7 @@ fun PurchaseTable(
                             Text("Edit", color = Color(0xFF10B981), fontSize = 12.sp)
                         }
                         TextButton(onClick = { onDeleteClick(purchase) }) {
-                            Text("Delete", color = Color(0xFFEF4444), fontSize = 12.sp)
+                            Text("Reverse", color = Color(0xFFEF4444), fontSize = 12.sp)
                         }
                     } else {
                         Row(

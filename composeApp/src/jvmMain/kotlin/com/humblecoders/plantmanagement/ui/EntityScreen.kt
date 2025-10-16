@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
@@ -33,7 +35,11 @@ import com.humblecoders.plantmanagement.viewmodels.SortDirection
 import com.humblecoders.plantmanagement.viewmodels.SortField
 
 @Composable
-fun EntityScreen(entityViewModel: EntityViewModel, userRole: UserRole? = null) {
+fun EntityScreen(
+    entityViewModel: EntityViewModel, 
+    userRole: UserRole? = null,
+    cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel? = null
+) {
     val entityState = entityViewModel.entityState
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
@@ -41,6 +47,9 @@ fun EntityScreen(entityViewModel: EntityViewModel, userRole: UserRole? = null) {
     var selectedEntityForLedger by remember { mutableStateOf<Entity?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var entityToDelete by remember { mutableStateOf<Entity?>(null) }
+    var showCashTransactionDialog by remember { mutableStateOf(false) }
+    var selectedEntityForCashTransaction by remember { mutableStateOf<Entity?>(null) }
+    var showCashTransactionHistory by remember { mutableStateOf(false) }
     
     val isAdmin = userRole == UserRole.ADMIN
 
@@ -70,6 +79,18 @@ fun EntityScreen(entityViewModel: EntityViewModel, userRole: UserRole? = null) {
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFF9FAFB)
             )
+            
+            // Cash Transaction History Button
+            if (cashTransactionViewModel != null) {
+                Button(
+                    onClick = { showCashTransactionHistory = true },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF10B981)
+                    )
+                ) {
+                    Text("Cash Transaction History", color = Color.White)
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -249,7 +270,12 @@ fun EntityScreen(entityViewModel: EntityViewModel, userRole: UserRole? = null) {
                         entityToDelete = it
                         showDeleteConfirmDialog = true
                     },
-                    isAdmin = isAdmin
+                    onCashTransactionClick = { entity ->
+                        selectedEntityForCashTransaction = entity
+                        showCashTransactionDialog = true
+                    },
+                    isAdmin = isAdmin,
+                    showCashTransaction = cashTransactionViewModel != null
                 )
             }
         }
@@ -346,6 +372,27 @@ fun EntityScreen(entityViewModel: EntityViewModel, userRole: UserRole? = null) {
             }
         )
     }
+    
+    // Cash Transaction Dialog
+    if (showCashTransactionDialog && selectedEntityForCashTransaction != null && cashTransactionViewModel != null) {
+        com.humblecoders.plantmanagement.ui.components.CashTransactionDialog(
+            customer = selectedEntityForCashTransaction!!,
+            cashTransactionViewModel = cashTransactionViewModel,
+            onDismiss = {
+                showCashTransactionDialog = false
+                selectedEntityForCashTransaction = null
+            }
+        )
+    }
+    
+    // Cash Transaction History Screen
+    if (showCashTransactionHistory && cashTransactionViewModel != null) {
+        CashTransactionHistoryScreen(
+            cashTransactionViewModel = cashTransactionViewModel,
+            entityViewModel = entityViewModel,
+            onBack = { showCashTransactionHistory = false }
+        )
+    }
 }
 
 @Composable
@@ -354,7 +401,9 @@ fun EntityTable(
     onEntityClick: (Entity) -> Unit,
     onEditClick: (Entity) -> Unit,
     onDeleteClick: (Entity) -> Unit,
-    isAdmin: Boolean
+    onCashTransactionClick: (Entity) -> Unit,
+    isAdmin: Boolean,
+    showCashTransaction: Boolean = false
 ) {
     Column {
         // Header row
@@ -410,14 +459,46 @@ fun EntityTable(
 
                 Row(
                     modifier = Modifier.weight(0.20f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    if (isAdmin) {
-                        TextButton(onClick = { onEditClick(entity) }) {
-                            Text("Edit", color = Color(0xFF10B981))
+                    // Cash Transaction Button (always visible if enabled)
+                    if (showCashTransaction) {
+                        Button(
+                            onClick = { onCashTransactionClick(entity) },
+                            modifier = Modifier.height(32.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = Color(0xFF10B981),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("Cash", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
-                        TextButton(onClick = { onDeleteClick(entity) }) {
-                            Text("Delete", color = Color(0xFFEF4444))
+                    }
+                    
+                    if (isAdmin) {
+                        IconButton(
+                            onClick = { onEditClick(entity) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit",
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { onDeleteClick(entity) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     } else {
                         Row(

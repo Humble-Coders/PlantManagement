@@ -48,7 +48,8 @@ fun MainScreen(
     authViewModel: AuthViewModel,
     entityViewModel: com.humblecoders.plantmanagement.viewmodels.EntityViewModel,
     purchaseViewModel: com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel,
-    inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
+    inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
+    cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
     val authState = authViewModel.authState
@@ -75,7 +76,7 @@ fun MainScreen(
             when (selectedMenuItem) {
                 MenuItem.DASHBOARD -> DashboardContent()
                 MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel, user?.role)
-                MenuItem.CUSTOMERS -> EntityScreen(entityViewModel, user?.role)
+                MenuItem.CUSTOMERS -> EntityScreen(entityViewModel, user?.role, cashTransactionViewModel)
                 MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
             MenuItem.PROFILE -> ProfileContent(authViewModel)
                 else -> PlaceholderContent(selectedMenuItem.name)

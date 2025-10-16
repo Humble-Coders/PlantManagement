@@ -49,7 +49,7 @@ kotlin {
 
             // PDF Generation
             implementation("com.openhtmltopdf:openhtmltopdf-core:1.0.10")
-            implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
+            implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10");
 
         }
     }

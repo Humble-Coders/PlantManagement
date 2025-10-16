@@ -15,11 +15,13 @@ import com.humblecoders.plantmanagement.repositories.EntityRepository
 import com.humblecoders.plantmanagement.repositories.FirebaseAuthRestClient
 import com.humblecoders.plantmanagement.repositories.InventoryRepository
 import com.humblecoders.plantmanagement.repositories.PurchaseRepository
+import com.humblecoders.plantmanagement.repositories.CashTransactionRepository
 import com.humblecoders.plantmanagement.repositories.CashOutRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
+import com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import java.io.ByteArrayInputStream
 
@@ -72,7 +74,8 @@ fun main() = application {
     // Wait for auth to be ready and get userId
     var entityViewModel: EntityViewModel? = null
     var purchaseViewModel: PurchaseViewModel? = null
-    var inventoryViewModel: InventoryViewModel?=null
+    var inventoryViewModel: InventoryViewModel? = null
+    var cashTransactionViewModel: CashTransactionViewModel? = null
 
 
 
@@ -99,14 +102,18 @@ fun main() = application {
 
             val inventoryRepository = InventoryRepository(firestoreNonNull, currentUser.uid, appId)
             inventoryViewModel = InventoryViewModel(inventoryRepository)
+            
+            val cashTransactionRepository = CashTransactionRepository(firestoreNonNull, currentUser.uid, appId)
+            cashTransactionViewModel = CashTransactionViewModel(cashTransactionRepository)
         }
 
-        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null) {
+        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null) {
             AppNavigation(
                 authViewModel = authViewModel,
                 entityViewModel = entityViewModel!!,
                 purchaseViewModel = purchaseViewModel!!,
-                inventoryViewModel = inventoryViewModel!!
+                inventoryViewModel = inventoryViewModel!!,
+                cashTransactionViewModel = cashTransactionViewModel!!
             )
         } else {
             AppNavigation(
@@ -116,7 +123,8 @@ fun main() = application {
                     PurchaseRepository(firestoreNonNull, "", appId),
                     CashOutRepository(firestoreNonNull, "", appId)
                 ),
-                inventoryViewModel = InventoryViewModel(InventoryRepository(firestoreNonNull, "", appId))
+                inventoryViewModel = InventoryViewModel(InventoryRepository(firestoreNonNull, "", appId)),
+                cashTransactionViewModel = CashTransactionViewModel(CashTransactionRepository(firestoreNonNull, "", appId))
             )
         }
     }

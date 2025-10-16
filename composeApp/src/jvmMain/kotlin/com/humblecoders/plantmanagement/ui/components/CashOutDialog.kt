@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,14 +22,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.humblecoders.plantmanagement.data.PurchaseAllocation
+import com.humblecoders.plantmanagement.data.Entity
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
+import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import kotlinx.coroutines.launch
 
 @Composable
 fun CashOutDialog(
     purchaseViewModel: PurchaseViewModel,
+    entityViewModel: EntityViewModel,
     onDismiss: () -> Unit
 ) {
+    var selectedEntity by remember { mutableStateOf<Entity?>(null) }
+    var showEntityDropdown by remember { mutableStateOf(false) }
     var cashOutAmount by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var allocations by remember { mutableStateOf<List<PurchaseAllocation>>(emptyList()) }
@@ -37,6 +43,7 @@ fun CashOutDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     
     val coroutineScope = rememberCoroutineScope()
+    val entities = entityViewModel.entityState.entities
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -90,6 +97,80 @@ fun CashOutDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
+                // Customer/Entity Selection
+                Text(
+                    text = "Select Customer/Entity",
+                    fontSize = 14.sp,
+                    color = Color(0xFF9CA3AF),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { showEntityDropdown = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFF9FAFB),
+                            backgroundColor = Color(0xFF374151)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = selectedEntity?.firmName ?: "Select Customer",
+                                modifier = Modifier.weight(1f),
+                                color = Color(0xFFF9FAFB)
+                            )
+                            Icon(
+                                Icons.Default.ArrowDropDown, 
+                                contentDescription = null,
+                                tint = Color(0xFFF9FAFB)
+                            )
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showEntityDropdown,
+                        onDismissRequest = { showEntityDropdown = false },
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .background(Color.White)
+                    ) {
+                        entities.forEach { entity ->
+                            DropdownMenuItem(
+                                onClick = {
+                                    selectedEntity = entity
+                                    showEntityDropdown = false
+                                    // Reset allocations when customer changes
+                                    allocations = emptyList()
+                                    editableAllocations = emptyMap()
+                                }
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        text = entity.firmName,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.Black
+                                    )
+                                    if (entity.contactPerson.isNotBlank()) {
+                                        Text(
+                                            text = entity.contactPerson,
+                                            fontSize = 12.sp,
+                                            color = Color.DarkGray
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 // Cash Out Amount Input
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -117,15 +198,23 @@ fun CashOutDialog(
                     
                     Button(
                         onClick = {
+                            if (selectedEntity == null) {
+                                errorMessage = "Please select a customer first"
+                                return@Button
+                            }
+                            
                             val amount = cashOutAmount.toDoubleOrNull()
                             if (amount != null && amount > 0) {
                                 isCalculating = true
                                 errorMessage = null
                                 coroutineScope.launch {
                                     try {
-                                        val calculatedAllocations = purchaseViewModel.calculateCashOutAllocations(amount)
+                                        val calculatedAllocations = purchaseViewModel.calculateCashOutAllocations(
+                                            amount,
+                                            selectedEntity!!.id
+                                        )
                                         if (calculatedAllocations.isEmpty()) {
-                                            errorMessage = "No pending purchases found to allocate cash out"
+                                            errorMessage = "No pending purchases found for ${selectedEntity!!.firmName}"
                                         } else {
                                             allocations = calculatedAllocations
                                             // Initialize editable allocations
@@ -143,7 +232,7 @@ fun CashOutDialog(
                                 errorMessage = "Please enter a valid amount greater than 0"
                             }
                         },
-                        enabled = !isCalculating && cashOutAmount.isNotBlank(),
+                        enabled = !isCalculating && cashOutAmount.isNotBlank() && selectedEntity != null,
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = Color(0xFF10B981),
                             contentColor = Color.White
@@ -226,7 +315,7 @@ fun CashOutDialog(
                             .fillMaxWidth()
                     ) {
                         itemsIndexed(allocations) { index, allocation ->
-                            val pendingAmount = allocation.newAmountPaid - allocation.previousAmountPaid
+                            val pendingAmount = allocation.grandTotal - allocation.previousAmountPaid
                             
                             Card(
                                 modifier = Modifier
@@ -289,7 +378,10 @@ fun CashOutDialog(
                     
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = if (totalAllocated > originalAmount) Color(0xFFEF4444) else Color(0xFF374151)
+                        backgroundColor = when {
+                            totalAllocated != originalAmount -> Color(0xFFEF4444)
+                            else -> Color(0xFF374151)
+                        }
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -308,11 +400,12 @@ fun CashOutDialog(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp
                                 )
-                                if (totalAllocated > originalAmount) {
+                                if (totalAllocated != originalAmount) {
                                     Text(
-                                        "Exceeds cash out amount!",
+                                        "Must equal ₹${String.format("%.2f", originalAmount)}",
                                         color = Color.White,
-                                        fontSize = 12.sp
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }
@@ -346,10 +439,9 @@ fun CashOutDialog(
                                 val updatedAllocations = allocations.mapIndexed { index, allocation ->
                                     val editedAmount = editableAllocations[index]?.toDoubleOrNull() ?: allocation.allocatedAmount
                                     val newAmountPaid = allocation.previousAmountPaid + editedAmount
-                                    val grandTotal = allocation.newAmountPaid + (allocation.allocatedAmount - editedAmount)
                                     
                                     val newPaymentStatus = when {
-                                        newAmountPaid >= grandTotal -> com.humblecoders.plantmanagement.data.PaymentStatus.PAID
+                                        newAmountPaid >= allocation.grandTotal -> com.humblecoders.plantmanagement.data.PaymentStatus.PAID
                                         newAmountPaid > 0 -> com.humblecoders.plantmanagement.data.PaymentStatus.PARTIALLY_PAID
                                         else -> com.humblecoders.plantmanagement.data.PaymentStatus.PENDING
                                     }
@@ -363,8 +455,9 @@ fun CashOutDialog(
                                 
                                 val totalAllocated = updatedAllocations.sumOf { it.allocatedAmount }
                                 
-                                if (totalAllocated > amount) {
-                                    errorMessage = "Total allocated amount exceeds cash out amount"
+                                // Validate that total allocated equals cash out amount
+                                if (totalAllocated != amount) {
+                                    errorMessage = "Total allocated amount must equal cash out amount (₹${String.format("%.2f", amount)})"
                                 } else {
                                     purchaseViewModel.processCashOut(amount, updatedAllocations, notes)
                                     onDismiss()

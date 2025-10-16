@@ -91,6 +91,7 @@ class CashOutRepository(
                         "firmName" to allocation.firmName,
                         "purchaseDate" to allocation.purchaseDate,
                         "customerId" to allocation.customerId,
+                        "grandTotal" to allocation.grandTotal,
                         "allocatedAmount" to allocation.allocatedAmount,
                         "previousAmountPaid" to allocation.previousAmountPaid,
                         "newAmountPaid" to allocation.newAmountPaid,
@@ -119,14 +120,19 @@ class CashOutRepository(
     }
     
     /**
-     * Get all pending/partially paid purchases in chronological order
+     * Get all pending/partially paid purchases in chronological order for a specific customer
      */
-    suspend fun getPendingPurchases(): List<Purchase> = withContext(Dispatchers.IO) {
+    suspend fun getPendingPurchases(customerId: String? = null): List<Purchase> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val snapshot = getPurchasesCollection()
+            var query = getPurchasesCollection()
                 .whereEqualTo("userId", userId)
-                .get()
-                .get(15, TimeUnit.SECONDS)
+            
+            // Filter by customer if specified
+            if (!customerId.isNullOrBlank()) {
+                query = query.whereEqualTo("customerId", customerId)
+            }
+            
+            val snapshot = query.get().get(15, TimeUnit.SECONDS)
             
             snapshot.documents.mapNotNull { doc ->
                 try {
@@ -213,6 +219,7 @@ class CashOutRepository(
                                     firmName = allocationMap["firmName"] as? String ?: "",
                                     purchaseDate = allocationMap["purchaseDate"] as? String ?: "",
                                     customerId = allocationMap["customerId"] as? String ?: "",
+                                    grandTotal = (allocationMap["grandTotal"] as? Number)?.toDouble() ?: 0.0,
                                     allocatedAmount = (allocationMap["allocatedAmount"] as? Number)?.toDouble() ?: 0.0,
                                     previousAmountPaid = (allocationMap["previousAmountPaid"] as? Number)?.toDouble() ?: 0.0,
                                     newAmountPaid = (allocationMap["newAmountPaid"] as? Number)?.toDouble() ?: 0.0,

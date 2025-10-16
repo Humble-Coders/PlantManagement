@@ -22,6 +22,7 @@ data class PurchaseAllocation(
     val firmName: String = "",
     val purchaseDate: String = "",
     val customerId: String = "",
+    val grandTotal: Double = 0.0,
     val allocatedAmount: Double = 0.0,
     val previousAmountPaid: Double = 0.0,
     val newAmountPaid: Double = 0.0,
