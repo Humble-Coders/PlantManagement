@@ -19,7 +19,8 @@ fun AppNavigation(
     entityViewModel: com.humblecoders.plantmanagement.viewmodels.EntityViewModel,
     purchaseViewModel: PurchaseViewModel,
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
-    cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
+    cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel,
+    productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 ) {
     val authState = authViewModel.authState
     var currentScreen by remember { mutableStateOf(Screen.LOGIN) }
@@ -53,7 +54,8 @@ fun AppNavigation(
                 entityViewModel = entityViewModel,
                 purchaseViewModel = purchaseViewModel,
                 inventoryViewModel = inventoryViewModel,
-                cashTransactionViewModel = cashTransactionViewModel
+                cashTransactionViewModel = cashTransactionViewModel,
+                productionViewModel = productionViewModel
             )
         }
     }
