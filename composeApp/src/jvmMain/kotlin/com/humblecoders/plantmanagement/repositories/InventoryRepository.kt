@@ -26,6 +26,7 @@ class InventoryRepository(
                     "quantity" to item.quantity,
                     "unit" to item.unit,
                     "categoryType" to item.categoryType.name,
+                    "averagePurchasePrice" to item.averagePurchasePrice,
                     "createdAt" to com.google.cloud.Timestamp.now()
                 )
                 
@@ -55,7 +56,8 @@ class InventoryRepository(
                     "name" to item.name,
                     "quantity" to item.quantity,
                     "unit" to item.unit,
-                    "categoryType" to item.categoryType.name
+                    "categoryType" to item.categoryType.name,
+                    "averagePurchasePrice" to item.averagePurchasePrice
                 )
                 
                 transaction.update(itemRef, itemData)
@@ -114,6 +116,7 @@ class InventoryRepository(
                             categoryType = CategoryType.valueOf(
                                 doc.getString("categoryType") ?: "RAW_MATERIAL"
                             ),
+                            averagePurchasePrice = doc.getDouble("averagePurchasePrice") ?: 0.0,
                             createdAt = doc.getTimestamp("createdAt")
                         )
                     } catch (e: Exception) {

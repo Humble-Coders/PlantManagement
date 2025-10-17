@@ -9,6 +9,7 @@ data class InventoryItem(
     val quantity: Double = 0.0,
     val unit: String = "kg",
     val categoryType: CategoryType = CategoryType.RAW_MATERIAL,
+    val averagePurchasePrice: Double = 0.0,
     val createdAt: Timestamp? = null
 )
 

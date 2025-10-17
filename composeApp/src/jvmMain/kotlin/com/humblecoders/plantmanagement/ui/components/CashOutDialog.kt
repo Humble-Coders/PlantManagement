@@ -137,7 +137,7 @@ fun CashOutDialog(
                         expanded = showEntityDropdown,
                         onDismissRequest = { showEntityDropdown = false },
                         modifier = Modifier
-                            .fillMaxWidth(0.85f)
+                            .width(300.dp)
                             .background(Color.White)
                     ) {
                         entities.forEach { entity ->

@@ -87,13 +87,19 @@ class PurchaseRepository(
                     transaction.update(entityRef, "balance", newBalance)
                 }
                 
-                // Update inventory quantities (increase them)
+                // Update inventory quantities and averagePurchasePrice (increase quantities)
                 purchase.items.forEachIndexed { index, item ->
                     val (inventoryRef, inventoryDoc) = inventoryRefsAndDocs[index]
                     if (inventoryDoc.exists()) {
                         val currentQuantity = inventoryDoc.getDouble("quantity") ?: 0.0
                         val newQuantity = currentQuantity + item.quantity
                         transaction.update(inventoryRef, "quantity", newQuantity)
+
+                        // Update averagePurchasePrice per requested rule
+                        val previousAvg = inventoryDoc.getDouble("averagePurchasePrice") ?: 0.0
+                        val currentPrice = item.pricePerUnit
+                        val newAvg = if (previousAvg == 0.0) currentPrice else (currentPrice + previousAvg) / 2.0
+                        transaction.update(inventoryRef, "averagePurchasePrice", newAvg)
                     }
                 }
                 
@@ -200,6 +206,9 @@ class PurchaseRepository(
                             val currentQuantity = inventoryDoc.getDouble("quantity") ?: 0.0
                             val adjustedQuantity = currentQuantity - oldQuantity
                             transaction.update(inventoryRef, "quantity", adjustedQuantity)
+
+                            // Note: We do not have historical price to recompute average accurately.
+                            // Keep averagePurchasePrice unchanged during update; it will adjust on next purchases.
                         }
                     }
                     
@@ -210,6 +219,12 @@ class PurchaseRepository(
                             val currentQuantity = inventoryDoc.getDouble("quantity") ?: 0.0
                             val newQuantity = currentQuantity + item.quantity
                             transaction.update(inventoryRef, "quantity", newQuantity)
+
+                            // Recalculate averagePurchasePrice using current price
+                            val previousAvg = inventoryDoc.getDouble("averagePurchasePrice") ?: 0.0
+                            val currentPrice = item.pricePerUnit
+                            val newAvg = if (previousAvg == 0.0) currentPrice else (currentPrice + previousAvg) / 2.0
+                            transaction.update(inventoryRef, "averagePurchasePrice", newAvg)
                         }
                     }
                     
@@ -300,16 +315,94 @@ class PurchaseRepository(
 
     suspend fun reversePurchase(purchaseId: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val updateData = mapOf(
-                "status" to TransactionStatus.REVERSED.name,
-                "reversedAt" to com.google.cloud.Timestamp.now(),
-                "reversalReason" to reason
-            )
-
-            getPurchasesCollection()
-                .document(purchaseId)
-                .update(updateData)
-                .get(15, TimeUnit.SECONDS)
+            // Use transaction to reverse purchase and adjust entity balance and inventory
+            firestore.runTransaction { transaction ->
+                // IMPORTANT: All reads must come before any writes in Firestore transactions
+                
+                // Read purchase first
+                val purchaseRef = getPurchasesCollection().document(purchaseId)
+                val purchaseDoc = transaction.get(purchaseRef).get()
+                
+                if (purchaseDoc.exists()) {
+                    // Get purchase data
+                    val grandTotal = purchaseDoc.getDouble("grandTotal") ?: purchaseDoc.getDouble("totalAmount") ?: 0.0
+                    val amountPaid = purchaseDoc.getDouble("amountPaid") ?: 0.0
+                    val pendingAmount = grandTotal - amountPaid
+                    val customerId = purchaseDoc.getString("customerId") ?: ""
+                    
+                    // Get items
+                    val itemsList = purchaseDoc.get("items") as? List<Map<String, Any>> ?: emptyList()
+                    
+                    // Read entity balance (collect future)
+                    val entityRef = if (customerId.isNotBlank()) getEntitiesCollection().document(customerId) else null
+                    val entityDocFuture = entityRef?.let { transaction.get(it) }
+                    
+                    // Read all inventory items (collect futures)
+                    val inventoryFutures = itemsList.mapNotNull { itemMap ->
+                        val inventoryItemId = itemMap["inventoryItemId"] as? String ?: ""
+                        val quantity = (itemMap["quantity"] as? Number)?.toDouble() ?: 0.0
+                        val pricePerUnit = (itemMap["pricePerUnit"] as? Number)?.toDouble() ?: 0.0
+                        
+                        if (inventoryItemId.isNotBlank()) {
+                            val inventoryRef = getInventoryCollection().document(inventoryItemId)
+                            Pair(Pair(inventoryRef, transaction.get(inventoryRef)), Pair(quantity, pricePerUnit))
+                        } else null
+                    }
+                    
+                    // Resolve futures
+                    val entityDoc = entityDocFuture?.get()
+                    val inventoryRefsAndDocs = inventoryFutures.map { (refFuturePair, qtyPricePair) ->
+                        val (ref, future) = refFuturePair
+                        val (qty, price) = qtyPricePair
+                        Pair(Pair(ref, future.get()), Pair(qty, price))
+                    }
+                    
+                    // Now perform all writes
+                    
+                    // Reverse entity balance: balance = balance - (-pendingAmount) = balance + pendingAmount
+                    if (entityRef != null && entityDoc?.exists() == true) {
+                        val currentBalance = entityDoc.getDouble("balance") ?: 0.0
+                        val newBalance = currentBalance + pendingAmount
+                        transaction.update(entityRef, "balance", newBalance)
+                    }
+                    
+                    // Reverse inventory quantities and averagePurchasePrice (subtract what was added)
+                    inventoryRefsAndDocs.forEach { (refDocPair, qtyPricePair) ->
+                        val (inventoryRef, inventoryDoc) = refDocPair
+                        val (quantity, pricePerUnit) = qtyPricePair
+                        if (inventoryDoc.exists()) {
+                            val currentQuantity = inventoryDoc.getDouble("quantity") ?: 0.0
+                            val newQuantity = currentQuantity - quantity
+                            transaction.update(inventoryRef, "quantity", newQuantity)
+                            
+                            // Reverse averagePurchasePrice calculation
+                            val currentAvg = inventoryDoc.getDouble("averagePurchasePrice") ?: 0.0
+                            if (currentAvg > 0.0 && pricePerUnit > 0.0) {
+                                // For simple average: if current avg = (old_avg + new_price) / 2
+                                // Then old_avg = 2 * current_avg - new_price
+                                // If this results in a valid positive value, use it
+                                val reversedAvg = 2.0 * currentAvg - pricePerUnit
+                                if (reversedAvg > 0.0) {
+                                    transaction.update(inventoryRef, "averagePurchasePrice", reversedAvg)
+                                } else {
+                                    // If reversal would result in negative or zero, set to 0
+                                    transaction.update(inventoryRef, "averagePurchasePrice", 0.0)
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Update purchase status
+                    val updateData = mapOf(
+                        "status" to TransactionStatus.REVERSED.name,
+                        "reversedAt" to com.google.cloud.Timestamp.now(),
+                        "reversalReason" to reason
+                    )
+                    transaction.update(purchaseRef, updateData)
+                }
+                
+                null
+            }.get(15, TimeUnit.SECONDS)
 
             Result.success(Unit)
         } catch (e: Exception) {

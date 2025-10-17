@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
@@ -28,6 +29,7 @@ import com.humblecoders.plantmanagement.data.CategoryType
 import com.humblecoders.plantmanagement.data.InventoryItem
 import com.humblecoders.plantmanagement.data.UserRole
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
+import com.humblecoders.plantmanagement.utils.PdfExportUtils
 
 @Composable
 fun InventoryScreen(inventoryViewModel: InventoryViewModel, userRole: UserRole? = null) {
@@ -213,6 +215,32 @@ fun InventoryScreen(inventoryViewModel: InventoryViewModel, userRole: UserRole? 
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Print/Download Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = {
+                            val filteredItems = inventoryViewModel.getFilteredItems()
+                            PdfExportUtils.exportInventoryItems(filteredItems)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF10B981),
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Print,
+                            contentDescription = "Print",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Print/Download Inventory")
+                    }
+                }
+
                 InventoryTable(
                     items = inventoryViewModel.getFilteredItems(),
                     onEditClick = {
@@ -328,6 +356,7 @@ fun InventoryTable(
         ) {
             Text("Name", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.30f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Quantity", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.20f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Avg. Purchase Price", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.20f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Unit", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.15f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Category", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.20f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Actions", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.15f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -345,6 +374,7 @@ fun InventoryTable(
             ) {
                 Text(item.name, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.30f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 Text(String.format("%.2f", item.quantity), color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.20f), fontSize = 14.sp)
+                Text(String.format("₹ %.2f", item.averagePurchasePrice), color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.20f), fontSize = 14.sp)
                 Text(item.unit, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.15f), fontSize = 14.sp)
                 Text(
                     text = item.categoryType.name.replace("_", " "),

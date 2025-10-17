@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,12 +56,24 @@ fun CashOutHistoryDialog(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFF9FAFB)
                     )
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = Color(0xFF9CA3AF)
-                        )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Button(
+                            onClick = {
+                                exportCashOutsToPdf(cashOuts)
+                            },
+                            colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981), contentColor = Color.White)
+                        ) {
+                            Icon(Icons.Default.Print, contentDescription = "Print", tint = Color.White)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Print/Download")
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color(0xFF9CA3AF)
+                            )
+                        }
                     }
                 }
 
@@ -89,6 +102,117 @@ fun CashOutHistoryDialog(
                 }
             }
         }
+    }
+}
+
+private fun exportCashOutsToPdf(cashOuts: List<CashOut>) {
+    try {
+        val now = java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+        )
+
+        val html = buildString {
+            append(
+                """
+                <html>
+                <head>
+                  <meta charset='UTF-8'/>
+                  <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #111; }
+                    .header { margin-bottom: 12px; }
+                    .muted { color: #666; font-size: 12px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                    th { background: #f0f2f5; text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; }
+                    td { padding: 8px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+                    .right { text-align: right; }
+                    .items { margin: 0; padding-left: 16px; color: #374151; }
+                  </style>
+                </head>
+                <body>
+                  <div class='header'>
+                    <h2 style='margin:0 0 4px 0;'>Cash Out History</h2>
+                    <div class='muted'>Generated on: $now • Total Records: ${cashOuts.size}</div>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style='width:28%'>Date</th>
+                        <th style='width:20%'>Amount</th>
+                        <th style='width:52%'>Allocations</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                """.trimIndent()
+            )
+
+            val dateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")
+
+            cashOuts.forEach { cashOut ->
+                val formattedDate = cashOut.createdAt?.let {
+                    Instant.ofEpochSecond(it.seconds)
+                        .atZone(ZoneId.systemDefault())
+                        .format(dateFormatter)
+                } ?: "Unknown Date"
+                val amountStr = String.format("%.2f", cashOut.totalAmount)
+
+                append(
+                    """
+                    <tr>
+                      <td>$formattedDate</td>
+                      <td class='right'>Rs. $amountStr</td>
+                      <td>
+                """.trimIndent()
+                )
+
+                if (cashOut.purchaseAllocations.isNotEmpty()) {
+                    val itemsHtml = cashOut.purchaseAllocations.joinToString(separator = "") { alloc ->
+                        """
+                          <div>• ${alloc.firmName} (${alloc.purchaseDate}) — Rs. ${String.format("%.2f", alloc.allocatedAmount)} (${alloc.newPaymentStatus.name.replace("_", " ")})</div>
+                        """.trimIndent()
+                    }
+                    append(itemsHtml)
+                } else {
+                    append("No allocations")
+                }
+
+                if (cashOut.notes.isNotBlank()) {
+                    append("<div style='color:#6b7280;margin-top:4px;'>Notes: ${cashOut.notes}</div>")
+                }
+
+                append("""
+                      </td>
+                    </tr>
+                """.trimIndent())
+            }
+
+            append(
+                """
+                    </tbody>
+                  </table>
+                </body>
+                </html>
+                """.trimIndent()
+            )
+        }
+
+        val fileName = "cash_out_history_${System.currentTimeMillis()}.pdf"
+        val file = java.io.File(System.getProperty("user.home"), "Downloads/$fileName")
+        java.io.FileOutputStream(file).use { os ->
+            val builder = com.openhtmltopdf.pdfboxout.PdfRendererBuilder()
+            builder.withHtmlContent(html, null)
+            builder.toStream(os)
+            builder.run()
+        }
+        println("Cash out history saved to: ${file.absolutePath}")
+
+        try {
+            if (java.awt.Desktop.isDesktopSupported()) {
+                java.awt.Desktop.getDesktop().open(file)
+            }
+        } catch (_: Exception) {}
+
+    } catch (e: Exception) {
+        println("Error exporting cash outs: ${e.message}")
     }
 }
 

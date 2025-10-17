@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
@@ -33,6 +34,7 @@ import com.humblecoders.plantmanagement.data.UserRole
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import com.humblecoders.plantmanagement.viewmodels.SortDirection
 import com.humblecoders.plantmanagement.viewmodels.SortField
+import com.humblecoders.plantmanagement.utils.PdfExportUtils
 
 @Composable
 fun EntityScreen(
@@ -257,6 +259,32 @@ fun EntityScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // Print/Download Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = {
+                            val filteredEntities = entityViewModel.getFilteredAndSortedEntities()
+                            PdfExportUtils.exportCustomers(filteredEntities)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF10B981),
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Print,
+                            contentDescription = "Print",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Print/Download Customers")
+                    }
+                }
 
                 // Entity table
                 EntityTable(

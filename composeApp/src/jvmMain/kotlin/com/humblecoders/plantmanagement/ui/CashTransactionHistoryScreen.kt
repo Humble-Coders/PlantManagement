@@ -87,12 +87,25 @@ fun CashTransactionHistoryScreen(
                 )
             }
             
-            IconButton(onClick = { showFilters = !showFilters }) {
-                Icon(
-                    Icons.Default.FilterList,
-                    contentDescription = "Filters",
-                    tint = Color(0xFF9CA3AF)
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = {
+                        val filtered = cashTransactionState.transactions // already filtered by current selections
+                        exportCashTransactionsToPdf(filtered)
+                    },
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981), contentColor = Color.White)
+                ) {
+                    Icon(Icons.Default.Print, contentDescription = "Print", tint = Color.White)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Print/Download")
+                }
+                IconButton(onClick = { showFilters = !showFilters }) {
+                    Icon(
+                        Icons.Default.FilterList,
+                        contentDescription = "Filters",
+                        tint = Color(0xFF9CA3AF)
+                    )
+                }
             }
         }
 
@@ -374,6 +387,102 @@ fun CashTransactionHistoryScreen(
                 }
             }
         }
+    }
+}
+
+private fun exportCashTransactionsToPdf(transactions: List<CashTransaction>) {
+    try {
+        val now = java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+        )
+
+        val html = buildString {
+            append(
+                """
+                <html>
+                <head>
+                  <meta charset='UTF-8'/>
+                  <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #111; }
+                    .header { margin-bottom: 12px; }
+                    .muted { color: #666; font-size: 12px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                    th { background: #f0f2f5; text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; }
+                    td { padding: 8px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+                    .right { text-align: right; }
+                  </style>
+                </head>
+                <body>
+                  <div class='header'>
+                    <h2 style='margin:0 0 4px 0;'>Cash Transaction History</h2>
+                    <div class='muted'>Generated on: $now • Total Records: ${transactions.size}</div>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style='width:22%'>Date</th>
+                        <th style='width:28%'>Customer</th>
+                        <th style='width:16%'>Type</th>
+                        <th style='width:16%'>Amount</th>
+                        <th style='width:18%'>Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                """.trimIndent()
+            )
+
+            val sdf = java.text.SimpleDateFormat("dd MMM yyyy, HH:mm", java.util.Locale.getDefault())
+
+            transactions.forEach { t ->
+                val date = t.createdAt?.let { sdf.format(java.util.Date(it.seconds * 1000)) } ?: "Unknown Date"
+                val amount = String.format("%.2f", t.amount)
+                val prev = String.format("%.2f", t.previousBalance)
+                val newB = String.format("%.2f", t.newBalance)
+                val type = if (t.transactionType == com.humblecoders.plantmanagement.data.CashTransactionType.RECEIVE) "Received" else "Given"
+
+                append(
+                    """
+                    <tr>
+                      <td>$date</td>
+                      <td>${t.customerName}</td>
+                      <td>$type</td>
+                      <td class='right'>Rs. $amount</td>
+                      <td class='right'>Rs. $prev → Rs. $newB</td>
+                    </tr>
+                """.trimIndent()
+                )
+
+                if (t.note.isNotBlank()) {
+                    append("""
+                        <tr>
+                          <td colspan='5' style='color:#6b7280;'>Note: ${t.note}</td>
+                        </tr>
+                    """.trimIndent())
+                }
+            }
+
+            append(
+                """
+                    </tbody>
+                  </table>
+                </body>
+                </html>
+                """.trimIndent()
+            )
+        }
+
+        val fileName = "cash_transactions_${System.currentTimeMillis()}.pdf"
+        val file = java.io.File(System.getProperty("user.home"), "Downloads/$fileName")
+        java.io.FileOutputStream(file).use { os ->
+            val builder = com.openhtmltopdf.pdfboxout.PdfRendererBuilder()
+            builder.withHtmlContent(html, null)
+            builder.toStream(os)
+            builder.run()
+        }
+        println("Cash transactions saved to: ${file.absolutePath}")
+        try { if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(file) } catch (_: Exception) {}
+    } catch (e: Exception) {
+        println("Error exporting cash transactions: ${e.message}")
     }
 }
 

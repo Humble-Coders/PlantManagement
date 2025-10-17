@@ -306,6 +306,32 @@ fun PurchaseScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Print/Download Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = {
+                            val filteredPurchases = purchaseViewModel.getFilteredAndSortedPurchases()
+                            printPurchases(filteredPurchases)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF10B981),
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Print,
+                            contentDescription = "Print",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Print/Download Purchases")
+                    }
+                }
+
                 PurchaseTable(
                     purchases = purchaseViewModel.getFilteredAndSortedPurchases(),
                     onEditClick = {
@@ -580,7 +606,7 @@ fun AddPurchaseDialog(
     onSave: (Purchase) -> Unit
 ) {
     var selectedEntityId by remember { mutableStateOf("") }
-    var purchaseDate by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)) }
+    var purchaseDate by remember { mutableStateOf(LocalDate.now()) }
     var gstRate by remember { mutableStateOf(0.0) }
     var amountPaid by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
@@ -678,19 +704,11 @@ fun AddPurchaseDialog(
 
                     // Purchase Date
                     item {
-                        OutlinedTextField(
-                            value = purchaseDate,
-                            onValueChange = { purchaseDate = it },
-                            label = { Text("Purchase Date (YYYY-MM-DD)", color = Color(0xFF9CA3AF)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
-                                textColor = Color(0xFFF9FAFB),
-                                backgroundColor = Color(0xFF111827),
-                                focusedBorderColor = Color(0xFF06B6D4),
-                                unfocusedBorderColor = Color(0xFF374151),
-                                cursorColor = Color(0xFF06B6D4)
-                            ),
-                            singleLine = true
+                        DatePicker(
+                            selectedDate = purchaseDate,
+                            onDateSelected = { purchaseDate = it },
+                            label = "Purchase Date",
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
 
@@ -1018,7 +1036,7 @@ fun AddPurchaseDialog(
                                     Purchase(
                                         customerId = selectedEntityId,
                                         firmName = selectedEntity?.firmName ?: "",
-                                        purchaseDate = purchaseDate,
+                                        purchaseDate = purchaseDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                                         items = purchaseItems,
                                         totalAmount = totalAmount,
                                         gstRate = gstRate,
@@ -1195,7 +1213,7 @@ fun EditPurchaseDialog(
     onSave: (Purchase) -> Unit
 ) {
     var selectedEntityId by remember { mutableStateOf(purchase.customerId) }
-    var purchaseDate by remember { mutableStateOf(purchase.purchaseDate) }
+    var purchaseDate by remember { mutableStateOf(LocalDate.parse(purchase.purchaseDate)) }
     var gstRate by remember { mutableStateOf(purchase.gstRate) }
     var amountPaid by remember { mutableStateOf(purchase.amountPaid.toString()) }
     var notes by remember { mutableStateOf(purchase.notes) }
@@ -1281,9 +1299,9 @@ fun EditPurchaseDialog(
                 // Purchase Date
                 item {
                     DatePicker(
-                        selectedDate = try { LocalDate.parse(purchaseDate) } catch (e: Exception) { LocalDate.now() },
+                        selectedDate = purchaseDate,
                         onDateSelected = { date -> 
-                            purchaseDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            purchaseDate = date
                         },
                         label = "Purchase Date",
                         modifier = Modifier.fillMaxWidth()
@@ -1627,7 +1645,7 @@ fun EditPurchaseDialog(
                                     Purchase(
                                         customerId = selectedEntityId,
                                         firmName = selectedEntity?.firmName ?: purchase.firmName,
-                                        purchaseDate = purchaseDate,
+                                        purchaseDate = purchaseDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                                         items = purchaseItems,
                                         totalAmount = totalAmount,
                                         gstRate = gstRate,
@@ -2199,6 +2217,121 @@ fun NetworkImage(
                 )
             }
         }
+    }
+}
+
+private fun printPurchases(purchases: List<Purchase>) {
+    try {
+        val now = java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+        )
+
+        // Build compact HTML mirroring the table view
+        val html = buildString {
+            append("""
+                <html>
+                <head>
+                  <meta charset='UTF-8'/>
+                  <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #111; }
+                    .header { margin-bottom: 12px; }
+                    .muted { color: #666; font-size: 12px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                    th { background: #f0f2f5; text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; }
+                    td { padding: 8px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+                    .right { text-align: right; }
+                    .items { margin: 0; padding-left: 16px; color: #374151; }
+                  </style>
+                </head>
+                <body>
+                  <div class='header'>
+                    <h2 style='margin:0 0 4px 0;'>Purchase Records</h2>
+                    <div class='muted'>Generated on: $now • Total Records: ${purchases.size}</div>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style='width:14%'>Date</th>
+                        <th style='width:26%'>Entity</th>
+                        <th style='width:12%'>Items</th>
+                        <th style='width:12%'>Total</th>
+                        <th style='width:12%'>Paid</th>
+                        <th style='width:12%'>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+            """.trimIndent())
+
+            purchases.forEach { purchase ->
+                val totalAmount = String.format("%.2f", purchase.grandTotal)
+                val amountPaid = String.format("%.2f", purchase.amountPaid)
+                val status = when (purchase.paymentStatus) {
+                    com.humblecoders.plantmanagement.data.PaymentStatus.PAID -> "Paid"
+                    com.humblecoders.plantmanagement.data.PaymentStatus.PARTIALLY_PAID -> "Partial"
+                    else -> "Pending"
+                }
+
+                append("""
+                    <tr>
+                      <td>${purchase.purchaseDate}</td>
+                      <td>${purchase.firmName}</td>
+                      <td>${purchase.items.size}</td>
+                      <td class='right'>Rs. $totalAmount</td>
+                      <td class='right'>Rs. $amountPaid</td>
+                      <td>$status</td>
+                    </tr>
+                """.trimIndent())
+
+                if (purchase.items.isNotEmpty()) {
+                    val itemsHtml = purchase.items.joinToString(separator = "") { item ->
+                        """
+                          <li>${item.itemName} - ${item.quantity} ${item.unit} @ Rs. ${String.format("%.2f", item.pricePerUnit)}</li>
+                        """.trimIndent()
+                    }
+                    append("""
+                        <tr>
+                          <td colspan='6'>
+                            <ul class='items'>
+                              $itemsHtml
+                            </ul>
+                          </td>
+                        </tr>
+                    """.trimIndent())
+                }
+            }
+
+            append("""
+                    </tbody>
+                  </table>
+                </body>
+                </html>
+            """.trimIndent())
+        }
+
+        // Write to PDF using OpenHTMLToPDF
+        val fileName = "purchase_records_${System.currentTimeMillis()}.pdf"
+        val file = java.io.File(System.getProperty("user.home"), "Downloads/$fileName")
+
+        java.io.FileOutputStream(file).use { os ->
+            val builder = com.openhtmltopdf.pdfboxout.PdfRendererBuilder()
+            builder.withHtmlContent(html, null)
+            builder.toStream(os)
+            builder.run()
+        }
+
+        println("Purchase records saved to: ${file.absolutePath}")
+
+        try {
+            if (java.awt.Desktop.isDesktopSupported()) {
+                java.awt.Desktop.getDesktop().open(file)
+            }
+        } catch (e: Exception) {
+            println("Could not open file automatically: ${e.message}")
+        }
+
+    } catch (e: Exception) {
+        println("Error printing purchases (PDF): ${e.message}")
+        e.printStackTrace()
     }
 }
 
