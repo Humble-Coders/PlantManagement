@@ -151,13 +151,20 @@ class ProductionRepository(
     }
 
     /**
-     * Update a production record
+     * Update a production record using transaction for atomicity
      */
     suspend fun updateProductionRecord(recordId: String, productionInput: ProductionInput): Result<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {
             val docRef = getProductionCollection().document(recordId)
             
+            // Use transaction to ensure atomic update
             firestore.runTransaction { transaction ->
+                // Verify document exists before updating
+                val doc = transaction.get(docRef).get()
+                if (!doc.exists()) {
+                    throw Exception("Production record not found")
+                }
+                
                 val productionData = mapOf(
                     "batchNumber" to productionInput.batchNumber,
                     "quantityProduced" to productionInput.quantityProduced,
@@ -186,13 +193,20 @@ class ProductionRepository(
     }
 
     /**
-     * Delete a production record
+     * Delete a production record using transaction for atomicity
      */
     suspend fun deleteProductionRecord(recordId: String): Result<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {
             val docRef = getProductionCollection().document(recordId)
             
+            // Use transaction to ensure atomic delete
             firestore.runTransaction { transaction ->
+                // Verify document exists before deleting
+                val doc = transaction.get(docRef).get()
+                if (!doc.exists()) {
+                    throw Exception("Production record not found")
+                }
+                
                 transaction.delete(docRef)
                 null
             }.get(10, TimeUnit.SECONDS)

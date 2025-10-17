@@ -25,8 +25,15 @@ import com.humblecoders.plantmanagement.data.*
 import com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 import com.humblecoders.plantmanagement.ui.components.DatePicker
+import com.humblecoders.plantmanagement.viewmodels.ProductionSortField
+import com.humblecoders.plantmanagement.viewmodels.SortDirection
+import kotlinx.coroutines.delay
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 
 @Composable
 fun ProductionScreen(
@@ -37,17 +44,16 @@ fun ProductionScreen(
     val productionState = productionViewModel.productionState
     val inventoryState = inventoryViewModel.inventoryState
     val isAdmin = userRole == UserRole.ADMIN
-    
-    // Local dialog state management
+
     var showAddDialog by remember { mutableStateOf(false) }
-    var showEditDialog by remember { mutableStateOf(false) }
-    var recordToEdit by remember { mutableStateOf<ProductionRecord?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var recordToDelete by remember { mutableStateOf<ProductionRecord?>(null) }
+    var showViewDialog by remember { mutableStateOf(false) }
+    var recordToView by remember { mutableStateOf<ProductionRecord?>(null) }
 
     LaunchedEffect(productionState.successMessage, productionState.error) {
         if (productionState.successMessage != null || productionState.error != null) {
-            kotlinx.coroutines.delay(3000)
+            delay(3000)
             productionViewModel.clearMessages()
         }
     }
@@ -141,18 +147,11 @@ fun ProductionScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
+
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Production Records",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFF9FAFB)
-                        )
-
                         OutlinedTextField(
                             value = productionState.searchQuery,
                             onValueChange = { productionViewModel.updateSearchQuery(it) },
@@ -160,7 +159,7 @@ fun ProductionScreen(
                             leadingIcon = {
                                 Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF9CA3AF))
                             },
-                            modifier = Modifier.width(250.dp),
+                            modifier = Modifier.width(200.dp),
                             colors = TextFieldDefaults.outlinedTextFieldColors(
                                 textColor = Color(0xFFF9FAFB),
                                 backgroundColor = Color(0xFF111827),
@@ -170,24 +169,129 @@ fun ProductionScreen(
                             ),
                             singleLine = true
                         )
+
+                        Text("From:", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+                        DatePicker(
+                            selectedDate = try { LocalDate.parse(productionState.filterDateFrom) } catch (e: Exception) { LocalDate.now() },
+                            onDateSelected = { date -> productionViewModel.updateDateFilter(date.format(DateTimeFormatter.ISO_LOCAL_DATE), productionState.filterDateTo) },
+                            modifier = Modifier.width(140.dp),
+                            label = ""
+                        )
+
+                        Text("To:", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+                        DatePicker(
+                            selectedDate = try { LocalDate.parse(productionState.filterDateTo) } catch (e: Exception) { LocalDate.now() },
+                            onDateSelected = { date -> productionViewModel.updateDateFilter(productionState.filterDateFrom, date.format(DateTimeFormatter.ISO_LOCAL_DATE)) },
+                            modifier = Modifier.width(140.dp),
+                            label = ""
+                        )
+
+                        var sortExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(
+                                onClick = { sortExpanded = true },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.Black
+                                )
+                            ) {
+                                Text("Sort by: ${productionState.sortBy.name}")
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+
+                            DropdownMenu(
+                                expanded = sortExpanded,
+                                onDismissRequest = { sortExpanded = false }
+                            ) {
+                                DropdownMenuItem(onClick = {
+                                    productionViewModel.updateSortBy(ProductionSortField.DATE)
+                                    sortExpanded = false
+                                }) {
+                                    Text("Date")
+                                }
+                                DropdownMenuItem(onClick = {
+                                    productionViewModel.updateSortBy(ProductionSortField.BATCH_NUMBER)
+                                    sortExpanded = false
+                                }) {
+                                    Text("Batch Number")
+                                }
+                                DropdownMenuItem(onClick = {
+                                    productionViewModel.updateSortBy(ProductionSortField.QUANTITY)
+                                    sortExpanded = false
+                                }) {
+                                    Text("Quantity")
+                                }
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { productionViewModel.toggleSortDirection() }
+                        ) {
+                            Icon(
+                                imageVector = if (productionState.sortDirection == SortDirection.ASCENDING) {
+                                    Icons.Default.ArrowDropUp
+                                } else {
+                                    Icons.Default.ArrowDropDown
+                                },
+                                contentDescription = "Sort Direction",
+                                tint = Color(0xFF06B6D4)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Print/Download Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            onClick = {
+                                val filteredRecords = productionViewModel.getFilteredAndSortedRecords()
+                                printProductionRecords(filteredRecords, inventoryViewModel)
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = Color(0xFF10B981),
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Print,
+                                contentDescription = "Print",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Print/Download Production Records")
+                        }
+                    }
+
                     ProductionRecordsTable(
-                        records = productionViewModel.getFilteredRecords(),
-                        onEditClick = { 
-                            recordToEdit = it
-                            showEditDialog = true
-                        },
-                        onDeleteClick = { 
+                        records = productionViewModel.getFilteredAndSortedRecords(),
+                        inventoryViewModel = inventoryViewModel,
+                        onDeleteClick = {
                             recordToDelete = it
                             showDeleteConfirmDialog = true
+                        },
+                        onViewClick = {
+                            recordToView = it
+                            showViewDialog = true
                         },
                         isAdmin = isAdmin
                     )
                 }
             }
+        }
+
+        if (showViewDialog && recordToView != null) {
+            ViewProductionDialog(
+                record = recordToView!!,
+                inventoryViewModel = inventoryViewModel,
+                onDismiss = {
+                    showViewDialog = false
+                    recordToView = null
+                }
+            )
         }
 
         // Loading indicator overlay
@@ -242,23 +346,6 @@ fun ProductionScreen(
         )
     }
 
-    // Edit Production Dialog
-    if (showEditDialog && recordToEdit != null) {
-        EditProductionDialog(
-            record = recordToEdit!!,
-            inventoryViewModel = inventoryViewModel,
-            onDismiss = {
-                showEditDialog = false
-                recordToEdit = null
-            },
-            onSave = { productionInput ->
-                productionViewModel.updateProductionRecord(recordToEdit!!.id, productionInput)
-                showEditDialog = false
-                recordToEdit = null
-            }
-        )
-    }
-
     // Delete Confirmation Dialog
     if (showDeleteConfirmDialog && recordToDelete != null) {
         DeleteConfirmationDialog(
@@ -280,8 +367,9 @@ fun ProductionScreen(
 @Composable
 fun ProductionRecordsTable(
     records: List<ProductionRecord>,
-    onEditClick: (ProductionRecord) -> Unit,
+    inventoryViewModel: InventoryViewModel,
     onDeleteClick: (ProductionRecord) -> Unit,
+    onViewClick: (ProductionRecord) -> Unit,
     isAdmin: Boolean
 ) {
     Column {
@@ -291,13 +379,13 @@ fun ProductionRecordsTable(
                 .background(Color(0xFF374151))
                 .padding(12.dp)
         ) {
-            Text("Batch Number", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.15f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Batch Number", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Quantity Produced", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Date", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Supervisor", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.15f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Date", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.10f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Supervisor", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Raw Materials", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.20f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Waste", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Actions", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.14f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Waste", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.10f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Actions", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.24f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         Divider(color = Color(0xFF374151))
@@ -310,43 +398,61 @@ fun ProductionRecordsTable(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(record.batchNumber, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.15f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(record.batchNumber, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.12f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 Text("${String.format("%.2f", record.quantityProduced)} kg", color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.12f), fontSize = 14.sp)
                 Text(
-                    record.productionDate?.let { 
-                        java.time.LocalDateTime.ofInstant(
-                            java.time.Instant.ofEpochMilli(it.seconds * 1000),
-                            java.time.ZoneId.systemDefault()
+                    record.productionDate?.let {
+                        LocalDateTime.ofInstant(
+                            Instant.ofEpochMilli(it.seconds * 1000),
+                            ZoneId.systemDefault()
                         ).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    } ?: "N/A", 
-                    color = Color(0xFFF9FAFB), 
-                    modifier = Modifier.weight(0.12f), 
+                    } ?: "N/A",
+                    color = Color(0xFFF9FAFB),
+                    modifier = Modifier.weight(0.10f),
                     fontSize = 14.sp
                 )
-                Text(record.supervisorName, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.15f), fontSize = 14.sp)
+                Text(record.supervisorName, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.12f), fontSize = 14.sp)
+
+                // Brief Raw Materials Display with Item Names
+                Column(modifier = Modifier.weight(0.20f)) {
+                    val inventoryItems = inventoryViewModel.getFilteredItems()
+                    val inventoryMap = inventoryItems.associate { it.id to it }
+                    
+                    record.rawMaterialsUsed.entries.take(2).forEach { (itemId, quantity) ->
+                        val inventoryItem = inventoryMap[itemId]
+                        val itemName = inventoryItem?.name ?: "Unknown Item"
+                        Text(
+                            "$itemName: ${String.format("%.2f", quantity)} kg",
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (record.rawMaterialsUsed.size > 2) {
+                        Text(
+                            "+${record.rawMaterialsUsed.size - 2} more",
+                            color = Color(0xFF06B6D4),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
                 Text(
-                    "${record.rawMaterialsUsed.size} items", 
-                    color = Color(0xFF10B981), 
-                    modifier = Modifier.weight(0.20f), 
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    record.wasteTracking?.let { "${String.format("%.2f", it.getTotalWaste())} kg" } ?: "0.00 kg", 
-                    color = Color(0xFFEF4444), 
-                    modifier = Modifier.weight(0.12f), 
+                    record.wasteTracking?.let { "${String.format("%.2f", it.getTotalWaste())} kg" } ?: "0.00 kg",
+                    color = Color(0xFFEF4444),
+                    modifier = Modifier.weight(0.10f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
 
                 Row(
-                    modifier = Modifier.weight(0.14f),
+                    modifier = Modifier.weight(0.24f),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    TextButton(onClick = { onViewClick(record) }) {
+                        Text("View", color = Color(0xFF3B82F6), fontSize = 12.sp)
+                    }
                     if (isAdmin) {
-                        TextButton(onClick = { onEditClick(record) }) {
-                            Text("Edit", color = Color(0xFF10B981), fontSize = 12.sp)
-                        }
                         TextButton(onClick = { onDeleteClick(record) }) {
                             Text("Delete", color = Color(0xFFEF4444), fontSize = 12.sp)
                         }
@@ -619,7 +725,7 @@ fun AddProductionDialog(
                                 ProductionInput(
                                     batchNumber = batchNumber,
                                     quantityProduced = quantityProduced.toDoubleOrNull() ?: 0.0,
-                                    productionDate = selectedDate.atStartOfDay().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                                    productionDate = selectedDate.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                                     supervisorName = supervisorName,
                                     notes = notes,
                                     rawMaterialsUsed = rawMaterialsUsed,
@@ -643,7 +749,7 @@ fun AddProductionDialog(
     }
 
     if (showDatePicker) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { showDatePicker = false }) {
+        Dialog(onDismissRequest = { showDatePicker = false }) {
             Card(
                 backgroundColor = Color(0xFF1F2937),
                 shape = RoundedCornerShape(16.dp),
@@ -742,7 +848,7 @@ fun RawMaterialsSelection(
                             }
                             onRawMaterialsChanged(updatedMap)
                             
-                            // Check if waste tracking should be shown
+                            // Check if waste tracking should be shown (only when raw materials > quantity produced)
                             val totalUsed = updatedMap.values.sum()
                             onShowWasteTracking(totalUsed > quantityProduced)
                         },
@@ -794,7 +900,7 @@ fun WasteTrackingSection(
     onBurnChange: (String) -> Unit,
     onRegrindChange: (String) -> Unit,
     onOthersChange: (String) -> Unit,
-    productionDifference: Double
+    productionDifference: Double // Only shown when raw materials > quantity produced
 ) {
     Column {
         Text(
@@ -884,7 +990,7 @@ fun WasteTrackingSection(
         
         val totalWaste = (wastage.toDoubleOrNull() ?: 0.0) + (burn.toDoubleOrNull() ?: 0.0) + 
                         (regrind.toDoubleOrNull() ?: 0.0) + (others.toDoubleOrNull() ?: 0.0)
-        val isValidSum = kotlin.math.abs(totalWaste - productionDifference) < 0.01
+        val isValidSum = abs(totalWaste - productionDifference) < 0.01
         
         Spacer(modifier = Modifier.height(8.dp))
         
@@ -913,41 +1019,18 @@ fun calculateProductionDifference(rawMaterialsUsed: Map<String, Double>, quantit
 }
 
 @Composable
-fun EditProductionDialog(
+fun ViewProductionDialog(
     record: ProductionRecord,
     inventoryViewModel: InventoryViewModel,
-    onDismiss: () -> Unit,
-    onSave: (ProductionInput) -> Unit
+    onDismiss: () -> Unit
 ) {
-    var batchNumber by remember { mutableStateOf(record.batchNumber) }
-    var quantityProduced by remember { mutableStateOf(record.quantityProduced.toString()) }
-    var supervisorName by remember { mutableStateOf(record.supervisorName) }
-    var notes by remember { mutableStateOf(record.notes) }
-    var selectedDate by remember { 
-        mutableStateOf(
-            record.productionDate?.let { 
-                java.time.LocalDateTime.ofInstant(
-                    java.time.Instant.ofEpochMilli(it.seconds * 1000),
-                    java.time.ZoneId.systemDefault()
-                ).toLocalDate()
-            } ?: LocalDate.now()
-        )
-    }
-    var showDatePicker by remember { mutableStateOf(false) }
-    
-    var rawMaterialsUsed by remember { mutableStateOf(record.rawMaterialsUsed) }
-    var showWasteTracking by remember { mutableStateOf(record.wasteTracking != null) }
-    var wastage by remember { mutableStateOf(record.wasteTracking?.wastage?.toString() ?: "0") }
-    var burn by remember { mutableStateOf(record.wasteTracking?.burn?.toString() ?: "0") }
-    var regrind by remember { mutableStateOf(record.wasteTracking?.regrind?.toString() ?: "0") }
-    var others by remember { mutableStateOf(record.wasteTracking?.others?.toString() ?: "0") }
-
-    val focusRequesters = remember { List(4) { FocusRequester() } }
+    val inventoryItems = inventoryViewModel.getFilteredItems()
+    val inventoryMap = inventoryItems.associate { it.id to it }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
-                .width(800.dp)
+                .width(650.dp)
                 .height(700.dp),
             backgroundColor = Color(0xFF1F2937),
             shape = RoundedCornerShape(16.dp),
@@ -966,7 +1049,7 @@ fun EditProductionDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Edit Production Record",
+                        "Production Record Details",
                         color = Color(0xFFF9FAFB),
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
@@ -986,152 +1069,135 @@ fun EditProductionDialog(
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
+                    // Production Information
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        Card(
+                            backgroundColor = Color(0xFF111827),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            OutlinedTextField(
-                                value = batchNumber,
-                                onValueChange = { batchNumber = it },
-                                label = { Text("Batch Number", color = Color(0xFF9CA3AF)) },
-                                modifier = Modifier.weight(1f).focusRequester(focusRequesters[0])
-                                    .onKeyEvent { event ->
-                                        if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
-                                            focusRequesters[1].requestFocus()
-                                            true
-                                        } else false
-                                    },
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    textColor = Color(0xFFF9FAFB),
-                                    backgroundColor = Color(0xFF111827),
-                                    focusedBorderColor = Color(0xFF06B6D4),
-                                    unfocusedBorderColor = Color(0xFF374151),
-                                    cursorColor = Color(0xFF06B6D4)
-                                ),
-                                singleLine = true
-                            )
-
-                            OutlinedTextField(
-                                value = quantityProduced,
-                                onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) quantityProduced = it },
-                                label = { Text("Quantity Produced (kg)", color = Color(0xFF9CA3AF)) },
-                                modifier = Modifier.weight(1f).focusRequester(focusRequesters[1])
-                                    .onKeyEvent { event ->
-                                        if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
-                                            focusRequesters[2].requestFocus()
-                                            true
-                                        } else false
-                                    },
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    textColor = Color(0xFFF9FAFB),
-                                    backgroundColor = Color(0xFF111827),
-                                    focusedBorderColor = Color(0xFF06B6D4),
-                                    unfocusedBorderColor = Color(0xFF374151),
-                                    cursorColor = Color(0xFF06B6D4)
-                                ),
-                                singleLine = true
-                            )
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Production Information", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                                Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+                                DetailRow("Batch Number", record.batchNumber)
+                                DetailRow("Quantity Produced", "${String.format("%.2f", record.quantityProduced)} kg", valueColor = Color(0xFF10B981))
+                                DetailRow(
+                                    "Production Date",
+                                    record.productionDate?.let {
+                                        java.time.LocalDateTime.ofInstant(
+                                            java.time.Instant.ofEpochMilli(it.seconds * 1000),
+                                            java.time.ZoneId.systemDefault()
+                                        ).toLocalDate().format(DateTimeFormatter.ofPattern("dd MMM yyyy"))
+                                    } ?: "N/A"
+                                )
+                                DetailRow("Supervisor", record.supervisorName)
+                            }
                         }
                     }
 
+                    // Raw Materials Used
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        Card(
+                            backgroundColor = Color(0xFF111827),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            OutlinedTextField(
-                                value = supervisorName,
-                                onValueChange = { supervisorName = it },
-                                label = { Text("Supervisor Name", color = Color(0xFF9CA3AF)) },
-                                modifier = Modifier.weight(1f).focusRequester(focusRequesters[2])
-                                    .onKeyEvent { event ->
-                                        if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
-                                            focusRequesters[3].requestFocus()
-                                            true
-                                        } else false
-                                    },
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    textColor = Color(0xFFF9FAFB),
-                                    backgroundColor = Color(0xFF111827),
-                                    focusedBorderColor = Color(0xFF06B6D4),
-                                    unfocusedBorderColor = Color(0xFF374151),
-                                    cursorColor = Color(0xFF06B6D4)
-                                ),
-                                singleLine = true
-                            )
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Raw Materials Used", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                                Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
 
-                            OutlinedTextField(
-                                value = selectedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
-                                onValueChange = { },
-                                label = { Text("Production Date", color = Color(0xFF9CA3AF)) },
-                                modifier = Modifier.weight(1f),
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    textColor = Color(0xFFF9FAFB),
-                                    backgroundColor = Color(0xFF111827),
-                                    focusedBorderColor = Color(0xFF06B6D4),
-                                    unfocusedBorderColor = Color(0xFF374151),
-                                    cursorColor = Color(0xFF06B6D4)
-                                ),
-                                readOnly = true,
-                                trailingIcon = {
-                                    IconButton(onClick = { showDatePicker = true }) {
-                                        Icon(Icons.Default.DateRange, contentDescription = "Select Date", tint = Color(0xFF06B6D4))
+                                record.rawMaterialsUsed.forEach { (itemId, quantity) ->
+                                    val inventoryItem = inventoryMap[itemId]
+                                    Card(
+                                        backgroundColor = Color(0xFF1F2937),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(
+                                                inventoryItem?.name ?: "Unknown Item",
+                                                color = Color(0xFF06B6D4),
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text("Quantity Used:", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+                                                Text(
+                                                    "${String.format("%.2f", quantity)} ${inventoryItem?.unit ?: "kg"}",
+                                                    color = Color(0xFFF9FAFB),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
                                 }
-                            )
+
+                                // Total Raw Materials
+                                Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Total Raw Materials:", color = Color(0xFFF9FAFB), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "${String.format("%.2f", record.rawMaterialsUsed.values.sum())} kg",
+                                        color = Color(0xFF10B981),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    item {
-                        RawMaterialsSelection(
-                            inventoryViewModel = inventoryViewModel,
-                            rawMaterialsUsed = rawMaterialsUsed,
-                            onRawMaterialsChanged = { rawMaterialsUsed = it },
-                            quantityProduced = quantityProduced.toDoubleOrNull() ?: 0.0,
-                            onShowWasteTracking = { showWasteTracking = it }
-                        )
-                    }
-
-                    if (showWasteTracking) {
+                    // Waste Tracking (if available)
+                    if (record.wasteTracking != null) {
                         item {
-                            WasteTrackingSection(
-                                wastage = wastage,
-                                burn = burn,
-                                regrind = regrind,
-                                others = others,
-                                onWastageChange = { wastage = it },
-                                onBurnChange = { burn = it },
-                                onRegrindChange = { regrind = it },
-                                onOthersChange = { others = it },
-                                productionDifference = calculateProductionDifference(rawMaterialsUsed, quantityProduced.toDoubleOrNull() ?: 0.0)
-                            )
+                            Card(
+                                backgroundColor = Color(0xFF111827),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Waste Tracking", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
+                                    Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+                                    DetailRow("Wastage", "${String.format("%.2f", record.wasteTracking.wastage)} kg", valueColor = Color(0xFFEF4444))
+                                    DetailRow("Burn", "${String.format("%.2f", record.wasteTracking.burn)} kg", valueColor = Color(0xFFEF4444))
+                                    DetailRow("Regrind", "${String.format("%.2f", record.wasteTracking.regrind)} kg", valueColor = Color(0xFFEF4444))
+                                    DetailRow("Others", "${String.format("%.2f", record.wasteTracking.others)} kg", valueColor = Color(0xFFEF4444))
+                                    Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+                                    DetailRow(
+                                        "Total Waste",
+                                        "${String.format("%.2f", record.wasteTracking.getTotalWaste())} kg",
+                                        valueColor = Color(0xFFEF4444)
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    item {
-                        OutlinedTextField(
-                            value = notes,
-                            onValueChange = { notes = it },
-                            label = { Text("Notes", color = Color(0xFF9CA3AF)) },
-                            modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[3]),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
-                                textColor = Color(0xFFF9FAFB),
+                    // Notes (if available)
+                    if (record.notes.isNotBlank()) {
+                        item {
+                            Card(
                                 backgroundColor = Color(0xFF111827),
-                                focusedBorderColor = Color(0xFF06B6D4),
-                                unfocusedBorderColor = Color(0xFF374151),
-                                cursorColor = Color(0xFF06B6D4)
-                            ),
-                            minLines = 2,
-                            maxLines = 4
-                        )
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Notes", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                                    Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+                                    Text(record.notes, color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                                }
+                            }
+                        }
                     }
                 }
 
-                // Footer Buttons
+                // Footer Button
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1140,91 +1206,162 @@ fun EditProductionDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = Color(0xFF9CA3AF))
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
                     Button(
-                        onClick = {
-                            val wasteTracking = if (showWasteTracking) {
-                                WasteTracking(
-                                    wastage = wastage.toDoubleOrNull() ?: 0.0,
-                                    burn = burn.toDoubleOrNull() ?: 0.0,
-                                    regrind = regrind.toDoubleOrNull() ?: 0.0,
-                                    others = others.toDoubleOrNull() ?: 0.0
-                                )
-                            } else null
-
-                            onSave(
-                                ProductionInput(
-                                    batchNumber = batchNumber,
-                                    quantityProduced = quantityProduced.toDoubleOrNull() ?: 0.0,
-                                    productionDate = selectedDate.atStartOfDay().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                                    supervisorName = supervisorName,
-                                    notes = notes,
-                                    rawMaterialsUsed = rawMaterialsUsed,
-                                    wasteTracking = wasteTracking
-                                )
-                            )
-                        },
-                        enabled = batchNumber.isNotBlank() && quantityProduced.isNotBlank() && 
-                                 supervisorName.isNotBlank() && rawMaterialsUsed.isNotEmpty() &&
-                                 (!showWasteTracking || (wastage.isNotBlank() && burn.isNotBlank() && regrind.isNotBlank() && others.isNotBlank())),
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF06B6D4),
-                            disabledBackgroundColor = Color(0xFF9CA3AF)
-                        )
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF06B6D4))
                     ) {
-                        Text("Update Production", color = Color(0xFF111827))
+                        Text("Close", color = Color(0xFF111827))
                     }
                 }
             }
         }
     }
+}
 
-    if (showDatePicker) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { showDatePicker = false }) {
-            Card(
-                backgroundColor = Color(0xFF1F2937),
-                shape = RoundedCornerShape(16.dp),
-                elevation = 8.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "Select Production Date",
-                        color = Color(0xFFF9FAFB),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
+private fun printProductionRecords(records: List<ProductionRecord>, inventoryViewModel: InventoryViewModel) {
+    try {
+        val now = java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+        )
+
+        // Get inventory items for name resolution
+        val inventoryItems = inventoryViewModel.getFilteredItems()
+        val inventoryMap = inventoryItems.associate { it.id to it }
+
+        // Build compact HTML mirroring the table view
+        val html = buildString {
+            append("""
+                <html>
+                <head>
+                  <meta charset='UTF-8'/>
+                  <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #111; }
+                    .header { margin-bottom: 12px; }
+                    .muted { color: #666; font-size: 12px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                    th { background: #f0f2f5; text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; }
+                    td { padding: 8px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+                    .right { text-align: right; }
+                    .items { margin: 0; padding-left: 16px; color: #374151; }
+                    .waste { color: #dc2626; font-weight: bold; }
+                    .quantity { color: #059669; font-weight: bold; }
+                  </style>
+                </head>
+                <body>
+                  <div class='header'>
+                    <h2 style='margin:0 0 4px 0;'>Production Records</h2>
+                    <div class='muted'>Generated on: $now • Total Records: ${records.size}</div>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style='width:12%'>Batch Number</th>
+                        <th style='width:12%'>Quantity Produced</th>
+                        <th style='width:10%'>Date</th>
+                        <th style='width:12%'>Supervisor</th>
+                        <th style='width:20%'>Raw Materials</th>
+                        <th style='width:10%'>Waste</th>
+                        <th style='width:24%'>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+            """.trimIndent())
+
+            records.forEach { record ->
+                val quantityProduced = String.format("%.2f", record.quantityProduced)
+                val productionDate = record.productionDate?.let {
+                    java.time.LocalDateTime.ofInstant(
+                        java.time.Instant.ofEpochMilli(it.seconds * 1000),
+                        java.time.ZoneId.systemDefault()
+                    ).toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                } ?: "N/A"
+                
+                val wasteAmount = record.wasteTracking?.let { 
+                    String.format("%.2f", it.getTotalWaste()) 
+                } ?: "0.00"
+
+                append("""
+                    <tr>
+                      <td>${record.batchNumber}</td>
+                      <td class='right quantity'>${quantityProduced} kg</td>
+                      <td>$productionDate</td>
+                      <td>${record.supervisorName}</td>
+                      <td>
+                """.trimIndent())
+
+                // Add raw materials details
+                if (record.rawMaterialsUsed.isNotEmpty()) {
+                    val rawMaterialsHtml = record.rawMaterialsUsed.entries.joinToString(separator = "<br/>") { (itemId, quantity) ->
+                        val inventoryItem = inventoryMap[itemId]
+                        val itemName = inventoryItem?.name ?: "Unknown Item"
+                        "$itemName: ${String.format("%.2f", quantity)} kg"
+                    }
+                    append(rawMaterialsHtml)
+                } else {
+                    append("No raw materials")
+                }
+
+                append("""
+                      </td>
+                      <td class='right waste'>${wasteAmount} kg</td>
+                      <td>${record.notes}</td>
+                    </tr>
+                """.trimIndent())
+
+                // Add waste tracking details if available
+                if (record.wasteTracking != null) {
+                    val wasteDetails = buildString {
+                        if (record.wasteTracking.wastage > 0) append("Wastage: ${String.format("%.2f", record.wasteTracking.wastage)} kg<br/>")
+                        if (record.wasteTracking.burn > 0) append("Burn: ${String.format("%.2f", record.wasteTracking.burn)} kg<br/>")
+                        if (record.wasteTracking.regrind > 0) append("Regrind: ${String.format("%.2f", record.wasteTracking.regrind)} kg<br/>")
+                        if (record.wasteTracking.others > 0) append("Others: ${String.format("%.2f", record.wasteTracking.others)} kg<br/>")
+                    }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    DatePicker(
-                        selectedDate = selectedDate,
-                        onDateSelected = { selectedDate = it }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Button(
-                        onClick = { showDatePicker = false },
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF06B6D4)
-                        )
-                    ) {
-                        Text("OK", color = Color(0xFF111827))
+                    if (wasteDetails.isNotEmpty()) {
+                        append("""
+                            <tr>
+                              <td colspan='7'>
+                                <div class='items'>
+                                  <strong>Waste Details:</strong><br/>
+                                  $wasteDetails
+                                </div>
+                              </td>
+                            </tr>
+                        """.trimIndent())
                     }
                 }
             }
-        }
-    }
 
-    LaunchedEffect(Unit) {
-        focusRequesters[0].requestFocus()
+            append("""
+                    </tbody>
+                  </table>
+                </body>
+                </html>
+            """.trimIndent())
+        }
+
+        // Write to PDF using OpenHTMLToPDF
+        val fileName = "production_records_${System.currentTimeMillis()}.pdf"
+        val file = java.io.File(System.getProperty("user.home"), "Downloads/$fileName")
+
+        java.io.FileOutputStream(file).use { os ->
+            val builder = com.openhtmltopdf.pdfboxout.PdfRendererBuilder()
+            builder.withHtmlContent(html, null)
+            builder.toStream(os)
+            builder.run()
+        }
+
+        println("Production records saved to: ${file.absolutePath}")
+
+        // Try to open the file automatically
+        try {
+            java.awt.Desktop.getDesktop().open(file)
+        } catch (e: Exception) {
+            println("Could not open file automatically: ${e.message}")
+        }
+
+    } catch (e: Exception) {
+        println("Error printing production records (PDF): ${e.message}")
+        e.printStackTrace()
     }
 }
