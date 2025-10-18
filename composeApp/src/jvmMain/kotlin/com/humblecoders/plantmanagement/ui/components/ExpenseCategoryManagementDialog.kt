@@ -1,3 +1,4 @@
+// composeApp/src/jvmMain/kotlin/com/humblecoders/plantmanagement/ui/components/ExpenseCategoryManagementDialog.kt
 package com.humblecoders.plantmanagement.ui.components
 
 import androidx.compose.foundation.background
@@ -21,32 +22,30 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.humblecoders.plantmanagement.data.CashReportCategory
-import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
-import com.humblecoders.plantmanagement.viewmodels.CashReportState
+import com.humblecoders.plantmanagement.data.ExpenseCategory
+import com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel
+import com.humblecoders.plantmanagement.viewmodels.ExpenseState
 
 @Composable
-fun CategoryManagementDialog(
-    cashReportViewModel: CashReportViewModel,
-    cashReportState: CashReportState,
+fun ExpenseCategoryManagementDialog(
+    expenseViewModel: ExpenseViewModel,
+    expenseState: ExpenseState,
     onDismiss: () -> Unit
 ) {
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showEditCategoryDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-    var categoryToEdit by remember { mutableStateOf<CashReportCategory?>(null) }
-    var categoryToDelete by remember { mutableStateOf<CashReportCategory?>(null) }
+    var categoryToEdit by remember { mutableStateOf<ExpenseCategory?>(null) }
+    var categoryToDelete by remember { mutableStateOf<ExpenseCategory?>(null) }
 
-    // Load categories when dialog opens
     LaunchedEffect(Unit) {
-        cashReportViewModel.loadCategories()
+        expenseViewModel.loadCategories()
     }
 
-    // Clear messages after showing
-    LaunchedEffect(cashReportState.successMessage, cashReportState.error) {
-        if (cashReportState.successMessage != null || cashReportState.error != null) {
+    LaunchedEffect(expenseState.successMessage, expenseState.error) {
+        if (expenseState.successMessage != null || expenseState.error != null) {
             kotlinx.coroutines.delay(3000)
-            cashReportViewModel.clearMessages()
+            expenseViewModel.clearMessages()
         }
     }
 
@@ -64,7 +63,6 @@ fun CategoryManagementDialog(
                     .fillMaxSize()
                     .padding(24.dp)
             ) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -82,14 +80,14 @@ fun CategoryManagementDialog(
                     ) {
                         Button(
                             onClick = { showAddCategoryDialog = true },
-                            enabled = !cashReportState.isAddingCategory && !cashReportState.isDeletingCategory,
+                            enabled = !expenseState.isAddingCategory && !expenseState.isDeletingCategory,
                             colors = ButtonDefaults.buttonColors(
-                                backgroundColor = Color(0xFF10B981),
+                                backgroundColor = Color(0xFFEF4444),
                                 contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            if (cashReportState.isAddingCategory) {
+                            if (expenseState.isAddingCategory) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(18.dp),
                                     color = Color.White,
@@ -104,7 +102,7 @@ fun CategoryManagementDialog(
                                 )
                             }
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (cashReportState.isAddingCategory) "Adding..." else "Add Category")
+                            Text(if (expenseState.isAddingCategory) "Adding..." else "Add Category")
                         }
                         IconButton(onClick = onDismiss) {
                             Icon(
@@ -118,14 +116,13 @@ fun CategoryManagementDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Success/Error messages
-                if (cashReportState.successMessage != null) {
+                if (expenseState.successMessage != null) {
                     Card(
                         backgroundColor = Color(0xFF10B981),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = cashReportState.successMessage ?: "",
+                            text = expenseState.successMessage!!,
                             color = Color.White,
                             modifier = Modifier.padding(12.dp)
                         )
@@ -133,13 +130,13 @@ fun CategoryManagementDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                if (cashReportState.error != null) {
+                if (expenseState.error != null) {
                     Card(
                         backgroundColor = Color(0xFFEF4444),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = cashReportState.error ?: "",
+                            text = expenseState.error!!,
                             color = Color.White,
                             modifier = Modifier.padding(12.dp)
                         )
@@ -147,8 +144,7 @@ fun CategoryManagementDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                // Categories List
-                if (cashReportState.categories.isEmpty()) {
+                if (expenseState.categories.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -180,10 +176,10 @@ fun CategoryManagementDialog(
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(cashReportState.categories) { category ->
-                            CategoryCard(
+                        items(expenseState.categories) { category ->
+                            ExpenseCategoryCard(
                                 category = category,
-                                cashReportState = cashReportState,
+                                expenseState = expenseState,
                                 onEdit = {
                                     categoryToEdit = category
                                     showEditCategoryDialog = true
@@ -200,31 +196,29 @@ fun CategoryManagementDialog(
         }
     }
 
-    // Add Category Dialog
     if (showAddCategoryDialog) {
-        AddEditCategoryDialog(
+        AddEditExpenseCategoryDialog(
             category = null,
-            cashReportState = cashReportState,
+            expenseState = expenseState,
             onDismiss = { showAddCategoryDialog = false },
             onSave = { categoryName ->
-                cashReportViewModel.addCategory(categoryName)
+                expenseViewModel.addCategory(categoryName)
                 showAddCategoryDialog = false
             }
         )
     }
 
-    // Edit Category Dialog
     if (showEditCategoryDialog && categoryToEdit != null) {
-        AddEditCategoryDialog(
+        AddEditExpenseCategoryDialog(
             category = categoryToEdit!!,
-            cashReportState = cashReportState,
-            onDismiss = { 
+            expenseState = expenseState,
+            onDismiss = {
                 showEditCategoryDialog = false
                 categoryToEdit = null
             },
             onSave = { categoryName ->
                 if (categoryToEdit != null) {
-                    cashReportViewModel.updateCategory(categoryToEdit!!.id, categoryName)
+                    expenseViewModel.updateCategory(categoryToEdit!!.id, categoryName)
                 }
                 showEditCategoryDialog = false
                 categoryToEdit = null
@@ -232,19 +226,18 @@ fun CategoryManagementDialog(
         )
     }
 
-    // Delete Confirmation Dialog
     if (showDeleteConfirmDialog && categoryToDelete != null) {
-        DeleteCategoryConfirmDialog(
+        DeleteExpenseCategoryConfirmDialog(
             category = categoryToDelete!!,
-            cashReportState = cashReportState,
+            expenseState = expenseState,
             onConfirm = {
                 if (categoryToDelete != null) {
-                    cashReportViewModel.deleteCategory(categoryToDelete!!.id)
+                    expenseViewModel.deleteCategory(categoryToDelete!!.id)
                 }
                 showDeleteConfirmDialog = false
                 categoryToDelete = null
             },
-            onDismiss = { 
+            onDismiss = {
                 showDeleteConfirmDialog = false
                 categoryToDelete = null
             }
@@ -253,9 +246,9 @@ fun CategoryManagementDialog(
 }
 
 @Composable
-private fun CategoryCard(
-    category: CashReportCategory,
-    cashReportState: CashReportState,
+private fun ExpenseCategoryCard(
+    category: ExpenseCategory,
+    expenseState: ExpenseState,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -279,7 +272,7 @@ private fun CategoryCard(
                 Icon(
                     Icons.Default.Category,
                     contentDescription = "Category",
-                    tint = Color(0xFF10B981),
+                    tint = Color(0xFFEF4444),
                     modifier = Modifier.size(24.dp)
                 )
                 Text(
@@ -289,7 +282,7 @@ private fun CategoryCard(
                     fontWeight = FontWeight.Medium
                 )
             }
-            
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -304,13 +297,13 @@ private fun CategoryCard(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                
+
                 IconButton(
                     onClick = onDelete,
-                    enabled = !cashReportState.isDeletingCategory && !cashReportState.isAddingCategory,
+                    enabled = !expenseState.isDeletingCategory && !expenseState.isAddingCategory,
                     modifier = Modifier.size(32.dp)
                 ) {
-                    if (cashReportState.isDeletingCategory) {
+                    if (expenseState.isDeletingCategory) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(18.dp),
                             color = Color(0xFFEF4444),
@@ -331,9 +324,9 @@ private fun CategoryCard(
 }
 
 @Composable
-private fun AddEditCategoryDialog(
-    category: CashReportCategory?,
-    cashReportState: CashReportState,
+private fun AddEditExpenseCategoryDialog(
+    category: ExpenseCategory?,
+    expenseState: ExpenseState,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit
 ) {
@@ -379,11 +372,10 @@ private fun AddEditCategoryDialog(
                     label = { Text("Category Name", color = Color(0xFF9CA3AF)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color(0xFFF9FAFB),
-                        cursorColor = Color(0xFF10B981),
-                        focusedBorderColor = Color(0xFF10B981),
+                        textColor = Color(0xFFF9FAFB),cursorColor = Color(0xFFEF4444),
+                        focusedBorderColor = Color(0xFFEF4444),
                         unfocusedBorderColor = Color(0xFF4B5563),
-                        focusedLabelColor = Color(0xFF10B981),
+                        focusedLabelColor = Color(0xFFEF4444),
                         unfocusedLabelColor = Color(0xFF9CA3AF)
                     )
                 )
@@ -412,14 +404,14 @@ private fun AddEditCategoryDialog(
                                 onSave(categoryName.trim())
                             }
                         },
-                        enabled = categoryName.isNotBlank() && !cashReportState.isAddingCategory && !cashReportState.isDeletingCategory,
+                        enabled = categoryName.isNotBlank() && !expenseState.isAddingCategory && !expenseState.isDeletingCategory,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF10B981),
+                            backgroundColor = Color(0xFFEF4444),
                             contentColor = Color.White
                         )
                     ) {
-                        if (cashReportState.isAddingCategory || cashReportState.isDeletingCategory) {
+                        if (expenseState.isAddingCategory || expenseState.isDeletingCategory) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 color = Color.White,
@@ -429,8 +421,8 @@ private fun AddEditCategoryDialog(
                         }
                         Text(
                             when {
-                                cashReportState.isAddingCategory -> "Adding..."
-                                cashReportState.isDeletingCategory -> "Processing..."
+                                expenseState.isAddingCategory -> "Adding..."
+                                expenseState.isDeletingCategory -> "Processing..."
                                 category != null -> "Update"
                                 else -> "Add"
                             }
@@ -443,9 +435,9 @@ private fun AddEditCategoryDialog(
 }
 
 @Composable
-private fun DeleteCategoryConfirmDialog(
-    category: CashReportCategory,
-    cashReportState: CashReportState,
+private fun DeleteExpenseCategoryConfirmDialog(
+    category: ExpenseCategory,
+    expenseState: ExpenseState,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -504,14 +496,14 @@ private fun DeleteCategoryConfirmDialog(
 
                     Button(
                         onClick = onConfirm,
-                        enabled = !cashReportState.isDeletingCategory && !cashReportState.isAddingCategory,
+                        enabled = !expenseState.isDeletingCategory && !expenseState.isAddingCategory,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = Color(0xFFEF4444),
                             contentColor = Color.White
                         )
                     ) {
-                        if (cashReportState.isDeletingCategory) {
+                        if (expenseState.isDeletingCategory) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 color = Color.White,
@@ -519,7 +511,7 @@ private fun DeleteCategoryConfirmDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text(if (cashReportState.isDeletingCategory) "Deleting..." else "Delete")
+                        Text(if (expenseState.isDeletingCategory) "Deleting..." else "Delete")
                     }
                 }
             }

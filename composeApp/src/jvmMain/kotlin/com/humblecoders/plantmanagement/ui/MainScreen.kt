@@ -35,6 +35,7 @@ enum class MenuItem {
     PENDING_BILLS,
     CUSTOMERS,
     CASH_REPORT,
+    EXPENSES,
     LEDGER,
     COMPANY_INFO,
     NOTES,
@@ -51,7 +52,8 @@ fun MainScreen(
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
     cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel,
     cashReportViewModel: com.humblecoders.plantmanagement.viewmodels.CashReportViewModel,
-    productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
+    productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel,
+    expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
     val authState = authViewModel.authState
@@ -82,6 +84,7 @@ fun MainScreen(
                 MenuItem.CUSTOMERS -> EntityScreen(entityViewModel, user?.role, cashTransactionViewModel)
                 MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
                 MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { /* No back action needed in main navigation */ }
+                MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel){ /* No back action needed in main navigation */ }
                 MenuItem.PROFILE -> ProfileContent(authViewModel)
                 else -> PlaceholderContent(selectedMenuItem.name)
             }
@@ -102,6 +105,7 @@ fun SidebarMenu(
         MenuItemData(MenuItem.PURCHASE, "Purchase", Icons.Default.ShoppingCart),
         MenuItemData(MenuItem.SALE, "Sale", Icons.Default.Star),
         MenuItemData(MenuItem.PENDING_BILLS, "Pending Bills", Icons.Default.DateRange),
+        MenuItemData(MenuItem.EXPENSES, "Expenses", Icons.Default.Receipt),  // Add this line
         MenuItemData(MenuItem.CUSTOMERS, "Customers", Icons.Default.Person),
         MenuItemData(MenuItem.CASH_REPORT, "Cash Report", Icons.Default.AccountBalance),
         MenuItemData(MenuItem.LEDGER, "Ledger", Icons.Default.Menu),

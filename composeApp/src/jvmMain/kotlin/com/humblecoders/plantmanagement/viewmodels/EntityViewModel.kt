@@ -28,10 +28,10 @@ enum class SortField {
     GSTIN
 }
 
-enum class SortDirection {
-    ASCENDING,
-    DESCENDING
-}
+//enum class SortDirection {
+//    ASCENDING,
+//    DESCENDING
+//}
 
 class EntityViewModel(
     private val entityRepository: EntityRepository

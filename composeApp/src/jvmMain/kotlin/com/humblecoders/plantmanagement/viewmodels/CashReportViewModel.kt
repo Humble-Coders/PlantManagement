@@ -38,6 +38,9 @@ data class CashReportState(
     val isLoading: Boolean = false,
     val isProcessing: Boolean = false,
     val isRetrying: Boolean = false, // New field for retry state
+    val isAddingCategory: Boolean = false,
+    val isDeletingCategory: Boolean = false,
+    val isDeletingCashReport: Boolean = false,
     val error: String? = null,
     val successMessage: String? = null,
     val searchQuery: String = "",
@@ -79,7 +82,7 @@ class CashReportViewModel(
             val result = cashReportRepository.addCashReport(cashReport)
             
             result.fold(
-                onSuccess = { transactionId ->
+                onSuccess = { _ ->
                     cashReportState = cashReportState.copy(
                         isProcessing = false,
                         successMessage = "Cash transaction added successfully"
@@ -100,15 +103,29 @@ class CashReportViewModel(
 
     fun addCategory(categoryName: String) {
         viewModelScope.launch {
+            // Prevent multiple simultaneous add operations
+            if (cashReportState.isAddingCategory) return@launch
+            
+            cashReportState = cashReportState.copy(
+                isAddingCategory = true,
+                error = null,
+                successMessage = null
+            )
+            
             val category = CashReportCategory(name = categoryName)
             val result = cashReportRepository.addCategory(category)
             
             result.fold(
-                onSuccess = { categoryId ->
+                onSuccess = { _ ->
+                    cashReportState = cashReportState.copy(
+                        isAddingCategory = false,
+                        successMessage = "Category added successfully"
+                    )
                     loadCategories()
                 },
                 onFailure = { error ->
                     cashReportState = cashReportState.copy(
+                        isAddingCategory = false,
                         error = error.message ?: "Failed to add category"
                     )
                 }
@@ -138,17 +155,28 @@ class CashReportViewModel(
 
     fun deleteCategory(categoryId: String) {
         viewModelScope.launch {
+            // Prevent multiple simultaneous delete operations
+            if (cashReportState.isDeletingCategory) return@launch
+            
+            cashReportState = cashReportState.copy(
+                isDeletingCategory = true,
+                error = null,
+                successMessage = null
+            )
+            
             val result = cashReportRepository.deleteCategory(categoryId)
             
             result.fold(
                 onSuccess = {
                     cashReportState = cashReportState.copy(
+                        isDeletingCategory = false,
                         successMessage = "Category deleted successfully"
                     )
                     loadCategories()
                 },
                 onFailure = { error ->
                     cashReportState = cashReportState.copy(
+                        isDeletingCategory = false,
                         error = error.message ?: "Failed to delete category"
                     )
                 }
@@ -278,21 +306,28 @@ class CashReportViewModel(
 
     fun deleteCashReport(cashReportId: String) {
         viewModelScope.launch {
-            cashReportState = cashReportState.copy(isProcessing = true, error = null)
+            // Prevent multiple simultaneous delete operations
+            if (cashReportState.isDeletingCashReport) return@launch
+            
+            cashReportState = cashReportState.copy(
+                isDeletingCashReport = true,
+                error = null,
+                successMessage = null
+            )
             
             val result = cashReportRepository.deleteCashReport(cashReportId)
             
             result.fold(
                 onSuccess = {
                     cashReportState = cashReportState.copy(
-                        isProcessing = false,
+                        isDeletingCashReport = false,
                         successMessage = "Transaction deleted successfully"
                     )
                     loadSummary()
                 },
                 onFailure = { error ->
                     cashReportState = cashReportState.copy(
-                        isProcessing = false,
+                        isDeletingCashReport = false,
                         error = error.message ?: "Failed to delete transaction"
                     )
                 }

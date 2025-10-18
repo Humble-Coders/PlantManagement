@@ -26,6 +26,7 @@ import com.humblecoders.plantmanagement.data.CashReportType
 import com.humblecoders.plantmanagement.viewmodels.CashReportSortField
 import com.humblecoders.plantmanagement.viewmodels.CashReportTypeFilter
 import com.humblecoders.plantmanagement.viewmodels.SortDirection
+import com.humblecoders.plantmanagement.viewmodels.CashReportState
 import com.humblecoders.plantmanagement.ui.components.AddCashTransactionDialog
 import com.humblecoders.plantmanagement.ui.components.CategoryManagementDialog
 import com.humblecoders.plantmanagement.ui.components.DatePicker
@@ -56,6 +57,10 @@ fun CashReportsScreen(
     // Clear messages after showing
     LaunchedEffect(cashReportState.successMessage, cashReportState.error) {
         if (cashReportState.successMessage != null || cashReportState.error != null) {
+            // Close delete dialog if deletion was successful
+            if (cashReportState.successMessage != null && cashReportState.successMessage.contains("deleted successfully")) {
+                showDeleteConfirmDialog = null
+            }
             kotlinx.coroutines.delay(3000)
             cashReportViewModel.clearMessages()
         }
@@ -390,6 +395,7 @@ fun CashReportsScreen(
     if (showCategoryManagementDialog) {
         CategoryManagementDialog(
             cashReportViewModel = cashReportViewModel,
+            cashReportState = cashReportState,
             onDismiss = { showCategoryManagementDialog = false }
         )
     }
@@ -399,11 +405,16 @@ fun CashReportsScreen(
         DeleteConfirmationDialog(
             transaction = showDeleteConfirmDialog!!,
             categories = cashReportState.categories,
+            cashReportState = cashReportState,
             onConfirm = {
                 cashReportViewModel.deleteCashReport(showDeleteConfirmDialog!!.id)
-                showDeleteConfirmDialog = null
+                // Don't close dialog immediately - let it close after success
             },
-            onDismiss = { showDeleteConfirmDialog = null }
+            onDismiss = { 
+                if (!cashReportState.isDeletingCashReport) {
+                    showDeleteConfirmDialog = null 
+                }
+            }
         )
     }
 }
@@ -631,12 +642,17 @@ private fun CashReportTransactionCard(
 private fun DeleteConfirmationDialog(
     transaction: CashReport,
     categories: List<CashReportCategory>,
+    cashReportState: CashReportState,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     // Find category name from categoryId
     val categoryName = categories.find { it.id == transaction.categoryId }?.name ?: "Unknown Category"
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = { 
+        if (!cashReportState.isDeletingCashReport) {
+            onDismiss()
+        }
+    }) {
         Card(
             modifier = Modifier.fillMaxWidth(0.8f),
             backgroundColor = Color(0xFF1F2937),
@@ -698,13 +714,22 @@ private fun DeleteConfirmationDialog(
 
                     Button(
                         onClick = onConfirm,
+                        enabled = !cashReportState.isDeletingCashReport,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = Color(0xFFEF4444),
                             contentColor = Color.White
                         )
                     ) {
-                        Text("Delete")
+                        if (cashReportState.isDeletingCashReport) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (cashReportState.isDeletingCashReport) "Deleting..." else "Delete")
                     }
                 }
             }

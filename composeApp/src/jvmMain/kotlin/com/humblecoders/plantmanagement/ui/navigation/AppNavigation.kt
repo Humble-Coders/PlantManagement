@@ -13,6 +13,7 @@ enum class Screen {
     MAIN
 }
 
+// Update AppNavigation.kt
 @Composable
 fun AppNavigation(
     authViewModel: AuthViewModel,
@@ -21,6 +22,7 @@ fun AppNavigation(
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
     cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel,
     cashReportViewModel: com.humblecoders.plantmanagement.viewmodels.CashReportViewModel,
+    expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,  // Add this line
     productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 ) {
     val authState = authViewModel.authState
@@ -57,6 +59,7 @@ fun AppNavigation(
                 inventoryViewModel = inventoryViewModel,
                 cashTransactionViewModel = cashTransactionViewModel,
                 cashReportViewModel = cashReportViewModel,
+                expenseViewModel = expenseViewModel,  // Add this line
                 productionViewModel = productionViewModel
             )
         }

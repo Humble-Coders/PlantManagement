@@ -18,12 +18,16 @@ import com.humblecoders.plantmanagement.repositories.PurchaseRepository
 import com.humblecoders.plantmanagement.repositories.CashTransactionRepository
 import com.humblecoders.plantmanagement.repositories.CashOutRepository
 import com.humblecoders.plantmanagement.repositories.CashReportRepository
+import com.humblecoders.plantmanagement.repositories.ExpenseRepository
+import com.humblecoders.plantmanagement.repositories.ProductionRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 import com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
 import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
+import com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel
+import com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import java.io.ByteArrayInputStream
 
@@ -53,7 +57,9 @@ fun main() = application {
     val firebaseApiKey = "AIzaSyAD4vhvoF1Kybe-fX0mief74FGHBc4dRRQ"
 
     // App ID for Firestore path
-    val appId = "default-app-id" // Change this to your actual app ID
+    val appId = "1:596856082775:web:38f48579a3d17f98dfee12" // Change this to your actual app ID
+
+
 
     // Initialize Firebase
     val firebaseCredentials = initializeFirebase(firebaseConfig)
@@ -64,6 +70,8 @@ fun main() = application {
     val firestore = if (firebaseCredentials != null) FirestoreClient.getFirestore() else null
     val firestoreNonNull = firestore ?: FirestoreClient.getFirestore()
     val restClient = FirebaseAuthRestClient(firebaseApiKey)
+    val storageService = com.humblecoders.plantmanagement.services.FirebaseStorageService(firebaseCredentials)
+
 
     // Initialize Auth Repository and ViewModel
     val authRepository = AuthRepository(
@@ -79,7 +87,8 @@ fun main() = application {
     var inventoryViewModel: InventoryViewModel? = null
     var cashTransactionViewModel: CashTransactionViewModel? = null
     var cashReportViewModel: CashReportViewModel? = null
-    var productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel? = null
+    var productionViewModel: ProductionViewModel? = null
+    var expenseViewModel: ExpenseViewModel? = null
 
 
 
@@ -113,8 +122,17 @@ fun main() = application {
             val cashReportRepository = CashReportRepository(firestoreNonNull)
             cashReportViewModel = CashReportViewModel(cashReportRepository)
             
-            val productionRepository = com.humblecoders.plantmanagement.repositories.ProductionRepository(firestoreNonNull, currentUser.uid, appId)
-            productionViewModel = com.humblecoders.plantmanagement.viewmodels.ProductionViewModel(productionRepository, inventoryViewModel!!)
+            val expenseRepository= ExpenseRepository(
+                firestoreNonNull,
+                storageService = storageService
+            )
+            expenseViewModel= ExpenseViewModel(
+                expenseRepository,
+                storageService = storageService
+            )
+            
+            val productionRepository = ProductionRepository(firestoreNonNull, currentUser.uid, appId)
+            productionViewModel = ProductionViewModel(productionRepository, inventoryViewModel!!)
         }
 
         if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null) {
@@ -125,7 +143,8 @@ fun main() = application {
                 inventoryViewModel = inventoryViewModel!!,
                 cashTransactionViewModel = cashTransactionViewModel!!,
                 cashReportViewModel = cashReportViewModel!!,
-                productionViewModel = productionViewModel!!
+                productionViewModel = productionViewModel!!,
+                expenseViewModel = expenseViewModel!!
             )
         } else {
             AppNavigation(
@@ -135,12 +154,35 @@ fun main() = application {
                     PurchaseRepository(firestoreNonNull, "", appId),
                     CashOutRepository(firestoreNonNull, "", appId)
                 ),
-                inventoryViewModel = InventoryViewModel(InventoryRepository(firestoreNonNull, "", appId)),
-                cashTransactionViewModel = CashTransactionViewModel(CashTransactionRepository(firestoreNonNull, "", appId)),
+                inventoryViewModel = InventoryViewModel(
+                    InventoryRepository(
+                        firestoreNonNull,
+                        "",
+                        appId
+                    )
+                ),
+                cashTransactionViewModel = CashTransactionViewModel(
+                    CashTransactionRepository(
+                        firestoreNonNull,
+                        "",
+                        appId
+                    )
+                ),
                 cashReportViewModel = CashReportViewModel(CashReportRepository(firestoreNonNull)),
-                productionViewModel = com.humblecoders.plantmanagement.viewmodels.ProductionViewModel(
-                    com.humblecoders.plantmanagement.repositories.ProductionRepository(firestoreNonNull, "", appId),
+                productionViewModel = ProductionViewModel(
+                    ProductionRepository(
+                        firestoreNonNull,
+                        "",
+                        appId
+                    ),
                     InventoryViewModel(InventoryRepository(firestoreNonNull, "", appId))
+                ),
+                expenseViewModel = ExpenseViewModel(
+                    ExpenseRepository(
+                        firestoreNonNull,
+                        storageService = storageService  // Use the same storageService instance
+                    ),
+                    storageService = storageService
                 )
             )
         }
