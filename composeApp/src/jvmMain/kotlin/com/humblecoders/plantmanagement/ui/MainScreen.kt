@@ -50,6 +50,7 @@ fun MainScreen(
     purchaseViewModel: com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel,
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
     cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel,
+    cashReportViewModel: com.humblecoders.plantmanagement.viewmodels.CashReportViewModel,
     productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
@@ -80,7 +81,8 @@ fun MainScreen(
                 MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel, user?.role)
                 MenuItem.CUSTOMERS -> EntityScreen(entityViewModel, user?.role, cashTransactionViewModel)
                 MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
-            MenuItem.PROFILE -> ProfileContent(authViewModel)
+                MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { /* No back action needed in main navigation */ }
+                MenuItem.PROFILE -> ProfileContent(authViewModel)
                 else -> PlaceholderContent(selectedMenuItem.name)
             }
         }

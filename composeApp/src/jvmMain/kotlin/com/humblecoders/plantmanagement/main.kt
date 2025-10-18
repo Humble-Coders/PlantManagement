@@ -17,11 +17,13 @@ import com.humblecoders.plantmanagement.repositories.InventoryRepository
 import com.humblecoders.plantmanagement.repositories.PurchaseRepository
 import com.humblecoders.plantmanagement.repositories.CashTransactionRepository
 import com.humblecoders.plantmanagement.repositories.CashOutRepository
+import com.humblecoders.plantmanagement.repositories.CashReportRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 import com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
+import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import java.io.ByteArrayInputStream
 
@@ -76,6 +78,7 @@ fun main() = application {
     var purchaseViewModel: PurchaseViewModel? = null
     var inventoryViewModel: InventoryViewModel? = null
     var cashTransactionViewModel: CashTransactionViewModel? = null
+    var cashReportViewModel: CashReportViewModel? = null
     var productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel? = null
 
 
@@ -107,17 +110,21 @@ fun main() = application {
             val cashTransactionRepository = CashTransactionRepository(firestoreNonNull, currentUser.uid, appId)
             cashTransactionViewModel = CashTransactionViewModel(cashTransactionRepository)
             
+            val cashReportRepository = CashReportRepository(firestoreNonNull)
+            cashReportViewModel = CashReportViewModel(cashReportRepository)
+            
             val productionRepository = com.humblecoders.plantmanagement.repositories.ProductionRepository(firestoreNonNull, currentUser.uid, appId)
             productionViewModel = com.humblecoders.plantmanagement.viewmodels.ProductionViewModel(productionRepository, inventoryViewModel!!)
         }
 
-        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && productionViewModel != null) {
+        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null) {
             AppNavigation(
                 authViewModel = authViewModel,
                 entityViewModel = entityViewModel!!,
                 purchaseViewModel = purchaseViewModel!!,
                 inventoryViewModel = inventoryViewModel!!,
                 cashTransactionViewModel = cashTransactionViewModel!!,
+                cashReportViewModel = cashReportViewModel!!,
                 productionViewModel = productionViewModel!!
             )
         } else {
@@ -130,6 +137,7 @@ fun main() = application {
                 ),
                 inventoryViewModel = InventoryViewModel(InventoryRepository(firestoreNonNull, "", appId)),
                 cashTransactionViewModel = CashTransactionViewModel(CashTransactionRepository(firestoreNonNull, "", appId)),
+                cashReportViewModel = CashReportViewModel(CashReportRepository(firestoreNonNull)),
                 productionViewModel = com.humblecoders.plantmanagement.viewmodels.ProductionViewModel(
                     com.humblecoders.plantmanagement.repositories.ProductionRepository(firestoreNonNull, "", appId),
                     InventoryViewModel(InventoryRepository(firestoreNonNull, "", appId))

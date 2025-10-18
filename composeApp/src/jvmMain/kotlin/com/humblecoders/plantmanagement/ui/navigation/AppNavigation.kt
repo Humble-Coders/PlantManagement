@@ -20,6 +20,7 @@ fun AppNavigation(
     purchaseViewModel: PurchaseViewModel,
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
     cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel,
+    cashReportViewModel: com.humblecoders.plantmanagement.viewmodels.CashReportViewModel,
     productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 ) {
     val authState = authViewModel.authState
@@ -55,6 +56,7 @@ fun AppNavigation(
                 purchaseViewModel = purchaseViewModel,
                 inventoryViewModel = inventoryViewModel,
                 cashTransactionViewModel = cashTransactionViewModel,
+                cashReportViewModel = cashReportViewModel,
                 productionViewModel = productionViewModel
             )
         }
