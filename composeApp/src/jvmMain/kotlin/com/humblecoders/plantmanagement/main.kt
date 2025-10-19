@@ -120,7 +120,7 @@ fun main() = application {
             cashTransactionViewModel = CashTransactionViewModel(cashTransactionRepository)
             
             val cashReportRepository = CashReportRepository(firestoreNonNull)
-            cashReportViewModel = CashReportViewModel(cashReportRepository)
+            cashReportViewModel = CashReportViewModel(cashReportRepository, storageService)
             
             val expenseRepository= ExpenseRepository(
                 firestoreNonNull,
@@ -168,7 +168,7 @@ fun main() = application {
                         appId
                     )
                 ),
-                cashReportViewModel = CashReportViewModel(CashReportRepository(firestoreNonNull)),
+                cashReportViewModel = CashReportViewModel(CashReportRepository(firestoreNonNull), storageService),
                 productionViewModel = ProductionViewModel(
                     ProductionRepository(
                         firestoreNonNull,

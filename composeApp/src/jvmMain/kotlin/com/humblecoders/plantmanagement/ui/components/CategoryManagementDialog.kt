@@ -206,8 +206,8 @@ fun CategoryManagementDialog(
             category = null,
             cashReportState = cashReportState,
             onDismiss = { showAddCategoryDialog = false },
-            onSave = { categoryName ->
-                cashReportViewModel.addCategory(categoryName)
+            onSave = { categoryName, categoryType ->
+                cashReportViewModel.addCategory(categoryName, categoryType)
                 showAddCategoryDialog = false
             }
         )
@@ -222,7 +222,7 @@ fun CategoryManagementDialog(
                 showEditCategoryDialog = false
                 categoryToEdit = null
             },
-            onSave = { categoryName ->
+            onSave = { categoryName, _ ->
                 if (categoryToEdit != null) {
                     cashReportViewModel.updateCategory(categoryToEdit!!.id, categoryName)
                 }
@@ -282,12 +282,23 @@ private fun CategoryCard(
                     tint = Color(0xFF10B981),
                     modifier = Modifier.size(24.dp)
                 )
-                Text(
-                    text = category.name,
-                    color = Color(0xFFF9FAFB),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Column {
+                    Text(
+                        text = category.name,
+                        color = Color(0xFFF9FAFB),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = category.type.name.lowercase().replace("_", " "),
+                        color = when (category.type) {
+                            com.humblecoders.plantmanagement.data.CashReportType.CASH_IN -> Color(0xFF10B981)
+                            com.humblecoders.plantmanagement.data.CashReportType.CASH_OUT -> Color(0xFFEF4444)
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal
+                    )
+                }
             }
             
             Row(
@@ -335,9 +346,10 @@ private fun AddEditCategoryDialog(
     category: CashReportCategory?,
     cashReportState: CashReportState,
     onDismiss: () -> Unit,
-    onSave: (String) -> Unit
+    onSave: (String, com.humblecoders.plantmanagement.data.CashReportType) -> Unit
 ) {
     var categoryName by remember { mutableStateOf(category?.name ?: "") }
+    var categoryType by remember { mutableStateOf(category?.type ?: com.humblecoders.plantmanagement.data.CashReportType.CASH_IN) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -357,6 +369,51 @@ private fun AddEditCategoryDialog(
                     color = Color(0xFFF9FAFB),
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
+
+                // Category Type Selection (only for new categories)
+                if (category == null) {
+                    Text(
+                        text = "Category Type",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFF9FAFB),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        com.humblecoders.plantmanagement.data.CashReportType.values().forEach { type ->
+                            val isSelected = categoryType == type
+                            OutlinedButton(
+                                onClick = { categoryType = type },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (isSelected) Color.White else Color(0xFF9CA3AF),
+                                    backgroundColor = if (isSelected) {
+                                        when (type) {
+                                            com.humblecoders.plantmanagement.data.CashReportType.CASH_IN -> Color(0xFF10B981)
+                                            com.humblecoders.plantmanagement.data.CashReportType.CASH_OUT -> Color(0xFFEF4444)
+                                        }
+                                    } else Color(0xFF374151)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = when (type) {
+                                        com.humblecoders.plantmanagement.data.CashReportType.CASH_IN -> "Cash In"
+                                        com.humblecoders.plantmanagement.data.CashReportType.CASH_OUT -> "Cash Out"
+                                    },
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
 
                 if (errorMessage != null) {
                     Card(
@@ -409,7 +466,7 @@ private fun AddEditCategoryDialog(
                             if (categoryName.isBlank()) {
                                 errorMessage = "Please enter a category name"
                             } else {
-                                onSave(categoryName.trim())
+                                onSave(categoryName.trim(), categoryType)
                             }
                         },
                         enabled = categoryName.isNotBlank() && !cashReportState.isAddingCategory && !cashReportState.isDeletingCategory,

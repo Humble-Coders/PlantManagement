@@ -27,6 +27,7 @@ import com.humblecoders.plantmanagement.data.CashReportType
 fun SearchableCategoryDropdown(
     selectedCategory: CashReportCategory?,
     categories: List<CashReportCategory>,
+    transactionType: CashReportType,
     onCategorySelected: (CashReportCategory) -> Unit,
     onAddNewCategory: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -48,7 +49,7 @@ fun SearchableCategoryDropdown(
                         
                         // If user cleared the field, clear selection
                         if (newValue.isEmpty()) {
-                            onCategorySelected(CashReportCategory())
+                            onCategorySelected(CashReportCategory(type = transactionType))
                             isSearching = false
                         }
                     },
@@ -221,7 +222,7 @@ fun SearchableCategoryDropdown(
                     )
 
                     Text(
-                        text = "Create a new category that can be used for both Cash In and Cash Out transactions",
+                        text = "Create a new category for ${transactionType.name.lowercase().replace("_", " ")} transactions",
                         fontSize = 14.sp,
                         color = Color(0xFF9CA3AF),
                         modifier = Modifier.padding(bottom = 16.dp)
@@ -263,7 +264,7 @@ fun SearchableCategoryDropdown(
                                 if (newCategoryName.isNotBlank()) {
                                     onAddNewCategory(newCategoryName)
                                     // Create a temporary category object for the new category
-                                    onCategorySelected(CashReportCategory(name = newCategoryName))
+                                    onCategorySelected(CashReportCategory(name = newCategoryName, type = transactionType))
                                     showAddNewDialog = false
                                 }
                             },

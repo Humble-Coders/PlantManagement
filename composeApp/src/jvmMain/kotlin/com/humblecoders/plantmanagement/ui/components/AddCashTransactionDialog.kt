@@ -1,5 +1,6 @@
 package com.humblecoders.plantmanagement.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,6 +24,11 @@ import com.humblecoders.plantmanagement.data.CashReportCategory
 import com.humblecoders.plantmanagement.data.CashReportType
 import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
 import java.time.LocalDate
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import java.io.File
+import javax.imageio.ImageIO
+import com.humblecoders.plantmanagement.utils.toComposeImageBitmap
 
 @Composable
 fun AddCashTransactionDialog(
@@ -37,6 +43,9 @@ fun AddCashTransactionDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
 
+    var selectedImageFile by remember { mutableStateOf<File?>(null) }
+    var showImagePreview by remember { mutableStateOf(false) }
+
     val cashReportState = cashReportViewModel.cashReportState
 
     // Load categories when dialog opens
@@ -44,7 +53,7 @@ fun AddCashTransactionDialog(
         cashReportViewModel.loadCategories()
     }
 
-    // Load categories when transaction type changes (but show all categories)
+    // Load categories when transaction type changes and filter by type
     LaunchedEffect(transactionType) {
         cashReportViewModel.loadCategories() // Load all categories
         selectedCategory = null // Reset selected category when type changes
@@ -222,12 +231,13 @@ fun AddCashTransactionDialog(
 
                 SearchableCategoryDropdown(
                     selectedCategory = selectedCategory,
-                    categories = cashReportState.categories,
+                    categories = cashReportState.categories.filter { it.type == transactionType },
+                    transactionType = transactionType,
                     onCategorySelected = { category ->
                         selectedCategory = category
                     },
                     onAddNewCategory = { categoryName ->
-                        cashReportViewModel.addCategory(categoryName)
+                        cashReportViewModel.addCategory(categoryName, transactionType)
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -332,6 +342,80 @@ fun AddCashTransactionDialog(
                     )
                 )
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+// Image Upload Section
+                Text(
+                    text = "Receipt/Bill Image (Optional)",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFF9FAFB),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val fileChooser = javax.swing.JFileChooser()
+                            fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
+                                "Image files", "jpg", "jpeg", "png", "gif"
+                            )
+                            val result = fileChooser.showOpenDialog(null)
+                            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+                                selectedImageFile = fileChooser.selectedFile
+                            }
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF3B82F6),
+                            backgroundColor = Color(0xFF1E3A8A).copy(alpha = 0.1f)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Image,
+                            contentDescription = "Upload Image",
+                            modifier = Modifier.size(18.dp),
+                            tint = Color(0xFF3B82F6)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (selectedImageFile != null) "Change Image" else "Select Image",
+                            color = Color(0xFF3B82F6),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    if (selectedImageFile != null) {
+                        Text(
+                            text = selectedImageFile!!.name,
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        IconButton(onClick = { showImagePreview = true }) {
+                            Icon(
+                                Icons.Default.Visibility,
+                                contentDescription = "Preview",
+                                tint = Color(0xFF3B82F6)
+                            )
+                        }
+
+                        IconButton(onClick = { selectedImageFile = null }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Remove",
+                                tint = Color(0xFFEF4444)
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Action Buttons
@@ -368,7 +452,8 @@ fun AddCashTransactionDialog(
                                 categoryId = selectedCategory!!.id,
                                 amount = transactionAmount,
                                 date = selectedDate,
-                                notes = notes
+                                notes = notes,
+                                imageFile = selectedImageFile
                             )
                         },
                         enabled = amount.isNotBlank() && selectedCategory != null && !cashReportState.isProcessing,
@@ -429,4 +514,50 @@ fun AddCashTransactionDialog(
             }
         }
     }
+
+    // Image Preview Dialog
+    if (showImagePreview && selectedImageFile != null) {
+        Dialog(onDismissRequest = { showImagePreview = false }) {
+            Card(
+                backgroundColor = Color(0xFF1F2937),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val imageBitmap = remember(selectedImageFile) {
+                        try {
+                            val bufferedImage = ImageIO.read(selectedImageFile)
+                            bufferedImage.toComposeImageBitmap()
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    
+                    if (imageBitmap != null) {
+                        Image(
+                            bitmap = imageBitmap,
+                            contentDescription = "Preview",
+                            modifier = Modifier.size(400.dp)
+                        )
+                    } else {
+                        Text("Could not load image", color = Color(0xFFEF4444))
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { showImagePreview = false },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF10B981)
+                        )
+                    ) {
+                        Text("Close", color = Color.White)
+                    }
+                }
+            }
+        }
+    }
 }
+

@@ -104,7 +104,7 @@ class CashReportRepository(
                 existingCategoriesResult.fold(
                     onSuccess = { categories ->
                         val existingCategory = categories.find { 
-                            it.name.equals(category.name, ignoreCase = true)
+                            it.name.equals(category.name, ignoreCase = true) && it.type == category.type
                         }
                         
                         if (existingCategory != null) {
@@ -240,13 +240,23 @@ class CashReportRepository(
                 val existingCategoriesResult = getCategories()
                 existingCategoriesResult.fold(
                     onSuccess = { categories ->
+                        // Get the existing category to check its type
+                        val existingCategory = categories.find { it.id == categoryId }
+                        if (existingCategory == null) {
+                            return@withContext Result.failure(
+                                Exception("Category with ID $categoryId not found")
+                            )
+                        }
+                        
                         val conflictingCategory = categories.find { 
-                            it.name.equals(newName, ignoreCase = true) && it.id != categoryId 
+                            it.name.equals(newName, ignoreCase = true) && 
+                            it.type == existingCategory.type && 
+                            it.id != categoryId 
                         }
                         
                         if (conflictingCategory != null) {
                             return@withContext Result.failure(
-                                Exception("A category with name '$newName' already exists")
+                                Exception("A ${existingCategory.type.name.lowercase().replace("_", " ")} category with name '$newName' already exists")
                             )
                         }
                         

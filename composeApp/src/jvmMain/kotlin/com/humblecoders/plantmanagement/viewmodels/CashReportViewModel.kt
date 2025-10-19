@@ -12,11 +12,13 @@ import com.humblecoders.plantmanagement.data.CashReportType
 import com.humblecoders.plantmanagement.repositories.CashReportRepository
 import com.humblecoders.plantmanagement.repositories.CashReportSummary
 import com.humblecoders.plantmanagement.services.CashReportPdfService
+import com.humblecoders.plantmanagement.services.FirebaseStorageService
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 enum class CashReportSortField {
     DATE,
@@ -53,6 +55,7 @@ data class CashReportState(
 
 class CashReportViewModel(
     private val cashReportRepository: CashReportRepository,
+    private val storageService: FirebaseStorageService,
     private val pdfService: CashReportPdfService = CashReportPdfService()
 ) : ViewModel() {
 
@@ -64,10 +67,27 @@ class CashReportViewModel(
         categoryId: String,
         amount: Double,
         date: LocalDate,
-        notes: String
+        notes: String,
+        imageFile: File? = null
     ) {
         viewModelScope.launch {
             cashReportState = cashReportState.copy(isProcessing = true, error = null)
+            
+            // Upload image if provided
+            var imageUrl = ""
+            if (imageFile != null) {
+                val uploadResult = storageService.uploadImage(imageFile, "cash_reports")
+                uploadResult.fold(
+                    onSuccess = { url -> imageUrl = url },
+                    onFailure = { error ->
+                        cashReportState = cashReportState.copy(
+                            isProcessing = false,
+                            error = "Failed to upload image: ${error.message}"
+                        )
+                        return@launch
+                    }
+                )
+            }
             
             val timestamp = Timestamp.of(java.util.Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant()))
             
@@ -76,7 +96,8 @@ class CashReportViewModel(
                 categoryId = categoryId,
                 amount = amount,
                 date = timestamp,
-                notes = notes
+                notes = notes,
+                imageUrl = imageUrl
             )
             
             val result = cashReportRepository.addCashReport(cashReport)
@@ -101,7 +122,7 @@ class CashReportViewModel(
         }
     }
 
-    fun addCategory(categoryName: String) {
+    fun addCategory(categoryName: String, categoryType: CashReportType) {
         viewModelScope.launch {
             // Prevent multiple simultaneous add operations
             if (cashReportState.isAddingCategory) return@launch
@@ -112,7 +133,7 @@ class CashReportViewModel(
                 successMessage = null
             )
             
-            val category = CashReportCategory(name = categoryName)
+            val category = CashReportCategory(name = categoryName, type = categoryType)
             val result = cashReportRepository.addCategory(category)
             
             result.fold(

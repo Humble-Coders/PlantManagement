@@ -14,7 +14,8 @@ data class CashReport(
     val amount: Double = 0.0,
     val date: Timestamp? = null,
     val notes: String = "",
-    val createdAt: Timestamp? = null
+    val createdAt: Timestamp? = null,
+    val imageUrl: String = ""
 )
 
 /**
@@ -31,5 +32,6 @@ enum class CashReportType {
 data class CashReportCategory(
     val id: String = "",
     val name: String = "",
+    val type: CashReportType = CashReportType.CASH_IN, // Category must have a type (CASH_IN or CASH_OUT)
     val createdAt: Timestamp? = null
 )

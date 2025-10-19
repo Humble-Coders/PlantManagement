@@ -31,7 +31,7 @@ import com.humblecoders.plantmanagement.viewmodels.ExpenseState
 import com.humblecoders.plantmanagement.ui.components.AddExpenseDialog
 import com.humblecoders.plantmanagement.ui.components.ExpenseCategoryManagementDialog
 import com.humblecoders.plantmanagement.ui.components.DatePicker
-import com.humblecoders.plantmanagement.ui.components.toComposeImageBitmap
+import com.humblecoders.plantmanagement.utils.toComposeImageBitmap
 import com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel
 import java.text.SimpleDateFormat
 import java.util.*

@@ -1,5 +1,7 @@
 package com.humblecoders.plantmanagement.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -33,6 +35,8 @@ import com.humblecoders.plantmanagement.ui.components.DatePicker
 import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import javax.imageio.ImageIO
+import com.humblecoders.plantmanagement.utils.toComposeImageBitmap
 
 @Composable
 fun CashReportsScreen(
@@ -543,6 +547,7 @@ private fun CashReportTransactionCard(
     categories: List<CashReportCategory>,
     onDelete: () -> Unit
 ) {
+    var showImageDialog by remember { mutableStateOf(false) }
     val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
     val formattedDate = transaction.date?.let { 
         dateFormat.format(Date(it.seconds * 1000)) 
@@ -587,6 +592,15 @@ private fun CashReportTransactionCard(
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold
                     )
+
+                    if (transaction.imageUrl.isNotBlank()) {
+                        Icon(
+                            Icons.Default.Image,
+                            contentDescription = "Has Image",
+                            tint = Color(0xFF3B82F6),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
                 
                 Text(
@@ -622,19 +636,58 @@ private fun CashReportTransactionCard(
                     fontWeight = FontWeight.Bold
                 )
                 
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(24.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = Color(0xFF9CA3AF),
-                        modifier = Modifier.size(16.dp)
-                    )
+                    // View Image Button - Only show if transaction has an image
+                    if (transaction.imageUrl.isNotBlank()) {
+                        OutlinedButton(
+                            onClick = { showImageDialog = true },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF3B82F6),
+                                backgroundColor = Color(0xFF1E3A8A).copy(alpha = 0.1f)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Visibility,
+                                contentDescription = "View Image",
+                                tint = Color(0xFF3B82F6),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "View",
+                                fontSize = 12.sp,
+                                color = Color(0xFF3B82F6),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = Color(0xFF9CA3AF),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
+    }
+    
+    if (showImageDialog && transaction.imageUrl.isNotBlank()) {
+        ImageViewerDialog(
+            imageUrl = transaction.imageUrl,
+            onDismiss = { showImageDialog = false }
+        )
     }
 }
 
@@ -943,3 +996,147 @@ private fun CashReportFilterCard(
         }
     }
 }
+
+@Composable
+private fun ImageViewerDialog(
+    imageUrl: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(0.9f)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Transaction Image",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF9FAFB)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Load and display image from URL
+                var isLoading by remember { mutableStateOf(true) }
+                var loadError by remember { mutableStateOf(false) }
+                var imageBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
+                LaunchedEffect(imageUrl) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        try {
+                            val url = java.net.URL(imageUrl)
+                            val connection = url.openConnection()
+                            connection.connect()
+                            val inputStream = connection.getInputStream()
+                            val bufferedImage = javax.imageio.ImageIO.read(inputStream)
+                            imageBitmap = bufferedImage.toComposeImageBitmap()
+                            isLoading = false
+                        } catch (e: Exception) {
+                            loadError = true
+                            isLoading = false
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(400.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when {
+                        isLoading -> CircularProgressIndicator(color = Color(0xFF10B981))
+                        loadError -> Text(
+                            "Failed to load image",
+                            color = Color(0xFFEF4444)
+                        )
+                        imageBitmap != null -> androidx.compose.foundation.Image(
+                            bitmap = imageBitmap!!,
+                            contentDescription = "Transaction Image",
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            // Open image URL in browser
+                            try {
+                                val fixedUrl = fixImageUrl(imageUrl)
+                                java.awt.Desktop.getDesktop().browse(java.net.URI(fixedUrl))
+                            } catch (e: Exception) {
+                                println("Error opening URL: ${e.message}")
+                                e.printStackTrace()
+                            }
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF06B6D4)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Open in browser", modifier = Modifier.size(14.dp), tint = Color(0xFF06B6D4))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Open in browser", fontSize = 11.sp, color = Color(0xFF06B6D4))
+                    }
+
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF10B981)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Close", color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun fixImageUrl(url: String): String {
+    return try {
+        if (url.contains("/o/") && url.contains("?alt=media")) {
+            val parts = url.split("/o/")
+            if (parts.size == 2) {
+                val pathAndQuery = parts[1].split("?alt=media")
+                if (pathAndQuery.isNotEmpty()) {
+                    val path = pathAndQuery[0]
+                    // Decode, then re-encode properly
+                    val decodedPath = java.net.URLDecoder.decode(path, "UTF-8")
+                    val properlyEncodedPath = java.net.URLEncoder.encode(decodedPath, "UTF-8")
+                        .replace("+", "%20")
+                    return "${parts[0]}/o/${properlyEncodedPath}?alt=media"
+                }
+            }
+        }
+        url
+    } catch (e: Exception) {
+        println("Error fixing URL: ${e.message}")
+        url
+    }
+}
+

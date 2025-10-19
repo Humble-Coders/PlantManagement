@@ -26,9 +26,9 @@ import com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel
 import java.time.LocalDate
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.toComposeImageBitmap
 import java.io.File
 import javax.imageio.ImageIO
+import com.humblecoders.plantmanagement.utils.toComposeImageBitmap
 
 @Composable
 fun AddExpenseDialog(
@@ -471,12 +471,4 @@ fun AddExpenseDialog(
 
 }
 
-fun java.awt.image.BufferedImage.toComposeImageBitmap(): androidx.compose.ui.graphics.ImageBitmap {
-    val bitmap = org.jetbrains.skia.Image.makeFromEncoded(
-        java.io.ByteArrayOutputStream().apply {
-            javax.imageio.ImageIO.write(this@toComposeImageBitmap, "png", this)
-        }.toByteArray()
-    ).toComposeImageBitmap()
-    return bitmap
-}
 
