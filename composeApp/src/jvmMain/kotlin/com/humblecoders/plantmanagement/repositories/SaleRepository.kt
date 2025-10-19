@@ -37,7 +37,7 @@ class SaleRepository(
                 "revenueAmount" to sale.revenueAmount,
                 "totalRevenueAmount" to sale.totalRevenueAmount,
                 "differenceAmount" to sale.differenceAmount,
-                "revenueAmountPaid" to sale.revenueAmountPaid,
+                "portalAmountPaid" to sale.portalAmountPaid,
                 "saleStatus" to sale.saleStatus.name,
                 "differenceAmountPaid" to sale.differenceAmountPaid,
                 "differenceStatus" to sale.differenceStatus.name,
@@ -76,9 +76,9 @@ class SaleRepository(
 
                 transaction.set(docRef, saleData)
 
-                val revenuePending = sale.totalRevenueAmount - sale.revenueAmountPaid
+                val portalPending = sale.totalPortalAmount - sale.portalAmountPaid
                 val differencePending = sale.differenceAmount - sale.differenceAmountPaid
-                val totalPending = revenuePending + differencePending
+                val totalPending = portalPending + differencePending
 
                 if (entityDoc.exists()) {
                     val currentBalance = entityDoc.getDouble("balance") ?: 0.0
@@ -126,7 +126,7 @@ class SaleRepository(
                 "revenueAmount" to sale.revenueAmount,
                 "totalRevenueAmount" to sale.totalRevenueAmount,
                 "differenceAmount" to sale.differenceAmount,
-                "revenueAmountPaid" to sale.revenueAmountPaid,
+                "portalAmountPaid" to sale.portalAmountPaid,
                 "saleStatus" to sale.saleStatus.name,
                 "differenceAmountPaid" to sale.differenceAmountPaid,
                 "differenceStatus" to sale.differenceStatus.name,
@@ -144,13 +144,13 @@ class SaleRepository(
                 val oldSaleDoc = transaction.get(saleRef).get()
 
                 if (oldSaleDoc.exists()) {
-                    val oldTotalRevenueAmount = oldSaleDoc.getDouble("totalRevenueAmount") ?: 0.0
-                    val oldRevenueAmountPaid = oldSaleDoc.getDouble("revenueAmountPaid") ?: 0.0
+                    val oldTotalPortalAmount = oldSaleDoc.getDouble("totalPortalAmount") ?: 0.0
+                    val oldPortalAmountPaid = oldSaleDoc.getDouble("portalAmountPaid") ?: 0.0
                     val oldDifferenceAmount = oldSaleDoc.getDouble("differenceAmount") ?: 0.0
                     val oldDifferenceAmountPaid = oldSaleDoc.getDouble("differenceAmountPaid") ?: 0.0
-                    val oldRevenuePending = oldTotalRevenueAmount - oldRevenueAmountPaid
+                    val oldPortalPending = oldTotalPortalAmount - oldPortalAmountPaid
                     val oldDifferencePending = oldDifferenceAmount - oldDifferenceAmountPaid
-                    val oldTotalPending = oldRevenuePending + oldDifferencePending
+                    val oldTotalPending = oldPortalPending + oldDifferencePending
 
                     val oldCustomerId = oldSaleDoc.getString("customerId") ?: ""
                     val oldQuantityKg = oldSaleDoc.getDouble("quantityKg") ?: 0.0
@@ -176,9 +176,9 @@ class SaleRepository(
                         Pair(ref, future.get())
                     }
 
-                    val newRevenuePending = sale.totalRevenueAmount - sale.revenueAmountPaid
+                    val newPortalPending = sale.totalPortalAmount - sale.portalAmountPaid
                     val newDifferencePending = sale.differenceAmount - sale.differenceAmountPaid
-                    val newTotalPending = newRevenuePending + newDifferencePending
+                    val newTotalPending = newPortalPending + newDifferencePending
 
                     if (oldCustomerId == sale.customerId && oldCustomerId.isNotBlank() && entityDoc.exists()) {
                         val currentBalance = entityDoc.getDouble("balance") ?: 0.0
@@ -226,13 +226,13 @@ class SaleRepository(
                 val saleDoc = transaction.get(saleRef).get()
 
                 if (saleDoc.exists()) {
-                    val totalRevenueAmount = saleDoc.getDouble("totalRevenueAmount") ?: 0.0
-                    val revenueAmountPaid = saleDoc.getDouble("revenueAmountPaid") ?: 0.0
+                    val totalPortalAmount = saleDoc.getDouble("totalPortalAmount") ?: 0.0
+                    val portalAmountPaid = saleDoc.getDouble("portalAmountPaid") ?: 0.0
                     val differenceAmount = saleDoc.getDouble("differenceAmount") ?: 0.0
                     val differenceAmountPaid = saleDoc.getDouble("differenceAmountPaid") ?: 0.0
-                    val revenuePending = totalRevenueAmount - revenueAmountPaid
+                    val portalPending = totalPortalAmount - portalAmountPaid
                     val differencePending = differenceAmount - differenceAmountPaid
-                    val totalPending = revenuePending + differencePending
+                    val totalPending = portalPending + differencePending
 
                     val customerId = saleDoc.getString("customerId") ?: ""
                     val quantityKg = saleDoc.getDouble("quantityKg") ?: 0.0
@@ -293,13 +293,13 @@ class SaleRepository(
                 val saleDoc = transaction.get(saleRef).get()
 
                 if (saleDoc.exists()) {
-                    val totalRevenueAmount = saleDoc.getDouble("totalRevenueAmount") ?: 0.0
-                    val revenueAmountPaid = saleDoc.getDouble("revenueAmountPaid") ?: 0.0
+                    val totalPortalAmount = saleDoc.getDouble("totalPortalAmount") ?: 0.0
+                    val portalAmountPaid = saleDoc.getDouble("portalAmountPaid") ?: 0.0
                     val differenceAmount = saleDoc.getDouble("differenceAmount") ?: 0.0
                     val differenceAmountPaid = saleDoc.getDouble("differenceAmountPaid") ?: 0.0
-                    val revenuePending = totalRevenueAmount - revenueAmountPaid
+                    val portalPending = totalPortalAmount - portalAmountPaid
                     val differencePending = differenceAmount - differenceAmountPaid
-                    val totalPending = revenuePending + differencePending
+                    val totalPending = portalPending + differencePending
 
                     val customerId = saleDoc.getString("customerId") ?: ""
                     val quantityKg = saleDoc.getDouble("quantityKg") ?: 0.0
@@ -398,7 +398,7 @@ class SaleRepository(
                                 revenueAmount = doc.getDouble("revenueAmount") ?: 0.0,
                                 totalRevenueAmount = doc.getDouble("totalRevenueAmount") ?: 0.0,
                                 differenceAmount = doc.getDouble("differenceAmount") ?: 0.0,
-                                revenueAmountPaid = doc.getDouble("revenueAmountPaid") ?: 0.0,
+                                portalAmountPaid = doc.getDouble("portalAmountPaid") ?: 0.0,
                                 saleStatus = SaleStatus.valueOf(
                                     doc.getString("saleStatus") ?: "PENDING"
                                 ),

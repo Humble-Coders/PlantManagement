@@ -53,7 +53,7 @@ fun AddSaleDialog(
     var discountedRatePerKg by remember { mutableStateOf("") }
     var extraQuantityKg by remember { mutableStateOf("") }
 
-    var revenueAmountPaid by remember { mutableStateOf("") }
+    var portalAmountPaid by remember { mutableStateOf("") }
 
     var billingStatus by remember { mutableStateOf(BillingStatus.PENDING_BILLED) }
 
@@ -472,9 +472,9 @@ fun AddSaleDialog(
 
                     item {
                         OutlinedTextField(
-                            value = revenueAmountPaid,
-                            onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) revenueAmountPaid = it },
-                            label = { Text("Revenue Amount Paid (₹)", color = Color(0xFF9CA3AF)) },
+                            value = portalAmountPaid,
+                            onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) portalAmountPaid = it },
+                            label = { Text("Portal Amount Paid (₹)", color = Color(0xFF9CA3AF)) },
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[7]),
                             colors = TextFieldDefaults.outlinedTextFieldColors(
                                 textColor = Color(0xFFF9FAFB),
@@ -690,11 +690,11 @@ fun AddSaleDialog(
                                     val selectedEntity = customers.find { it.id == selectedEntityId }
                                     val qty = quantityKg.toDoubleOrNull() ?: 0.0
                                     val bags = (qty / 25.0).toInt()
-                                    val revPaid = revenueAmountPaid.toDoubleOrNull() ?: 0.0
+                                    val portalPaid = portalAmountPaid.toDoubleOrNull() ?: 0.0
 
                                     val saleStatus = when {
-                                        revPaid >= calculation.totalRevenueAmount -> SaleStatus.PAID
-                                        revPaid > 0 -> SaleStatus.PARTIALLY_PAID
+                                        portalPaid >= calculation.totalPortalAmount -> SaleStatus.PAID
+                                        portalPaid > 0 -> SaleStatus.PARTIALLY_PAID
                                         else -> SaleStatus.PENDING
                                     }
 
@@ -725,7 +725,7 @@ fun AddSaleDialog(
                                             revenueAmount = calculation.revenueAmount,
                                             totalRevenueAmount = calculation.totalRevenueAmount,
                                             differenceAmount = calculation.differenceAmount,
-                                            revenueAmountPaid = revPaid,
+                                            portalAmountPaid = portalPaid,
                                             saleStatus = saleStatus,
                                             differenceAmountPaid = 0.0, // Always 0 when adding a sale
                                             differenceStatus = differenceStatus,
@@ -744,11 +744,11 @@ fun AddSaleDialog(
                                 val selectedEntity = customers.find { it.id == selectedEntityId }
                                 val qty = quantityKg.toDoubleOrNull() ?: 0.0
                                 val bags = (qty / 25.0).toInt()
-                                val revPaid = revenueAmountPaid.toDoubleOrNull() ?: 0.0
+                                val portalPaid = portalAmountPaid.toDoubleOrNull() ?: 0.0
 
                                 val saleStatus = when {
-                                    revPaid >= calculation.totalRevenueAmount -> SaleStatus.PAID
-                                    revPaid > 0 -> SaleStatus.PARTIALLY_PAID
+                                    portalPaid >= calculation.totalPortalAmount -> SaleStatus.PAID
+                                    portalPaid > 0 -> SaleStatus.PARTIALLY_PAID
                                     else -> SaleStatus.PENDING
                                 }
 
@@ -779,7 +779,7 @@ fun AddSaleDialog(
                                         revenueAmount = calculation.revenueAmount,
                                         totalRevenueAmount = calculation.totalRevenueAmount,
                                         differenceAmount = calculation.differenceAmount,
-                                        revenueAmountPaid = revPaid,
+                                        portalAmountPaid = portalPaid,
                                         saleStatus = saleStatus,
                                         differenceAmountPaid = 0.0, // Always 0 when adding a sale
                                         differenceStatus = differenceStatus,

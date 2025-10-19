@@ -193,13 +193,16 @@ object PdfExportUtils {
             columns = columns,
             itemDetailsExtractor = { sale ->
                 val s = sale as Sale
-                val paidAmount = String.format("%.2f", s.revenueAmountPaid)
-                val pendingAmount = String.format("%.2f", s.totalRevenueAmount - s.revenueAmountPaid)
+                val portalPaidAmount = String.format("%.2f", s.portalAmountPaid)
+                val portalPendingAmount = String.format("%.2f", s.totalPortalAmount - s.portalAmountPaid)
+                val totalPortalWithGST = String.format("%.2f", s.totalPortalAmount)
                 val differenceAmount = String.format("%.2f", s.differenceAmount)
                 val differenceText = if (s.differenceAmount >= 0) "+₹$differenceAmount" else "-₹${kotlin.math.abs(s.differenceAmount)}"
                 
                 buildString {
-                    append("Paid: ₹$paidAmount | Pending: ₹$pendingAmount | Difference: $differenceText")
+                    append("Portal Paid: ₹$portalPaidAmount | Portal Pending: ₹$portalPendingAmount")
+                    append(" | Total Portal Amount (with GST): ₹$totalPortalWithGST")
+                    append(" | Difference: $differenceText")
                     if (s.notes.isNotBlank()) {
                         append(" | Notes: ${s.notes}")
                     }

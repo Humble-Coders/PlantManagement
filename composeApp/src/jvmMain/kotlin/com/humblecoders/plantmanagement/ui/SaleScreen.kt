@@ -469,9 +469,9 @@ fun SaleTable(
             Text("Extra Qty", color = Color(0xFF9CA3AF), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Original Rate", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Discounted   Rate", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Portal Amount", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Total Portal Amount", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Revenue Amount", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Revenue Pending", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Portal Pending", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Difference Amount", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Difference Pending", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Sale Status", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -499,11 +499,11 @@ fun SaleTable(
                 Text("${String.format("%.2f", sale.extraQuantityKg)} kg", color = Color(0xFFF9FAFB), modifier = Modifier.width(80.dp), fontSize = 12.sp)
                 Text("₹${String.format("%.2f", sale.originalRatePerKg)}", color = Color(0xFFF9FAFB), modifier = Modifier.width(100.dp), fontSize = 12.sp)
                 Text("₹${String.format("%.2f", sale.discountedRatePerKg)}", color = Color(0xFFF9FAFB), modifier = Modifier.width(100.dp), fontSize = 12.sp)
-                Text("₹${String.format("%.2f", sale.portalAmount)}", color = Color(0xFFF9FAFB), modifier = Modifier.width(100.dp), fontSize = 12.sp)
+                Text("₹${String.format("%.2f", sale.totalPortalAmount)}", color = Color(0xFFF9FAFB), modifier = Modifier.width(100.dp), fontSize = 12.sp)
                 Text("₹${String.format("%.2f", sale.totalRevenueAmount)}", color = Color(0xFFF9FAFB), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 
                 Text(
-                    "₹${String.format("%.2f", sale.totalRevenueAmount - sale.revenueAmountPaid)}",
+                    "₹${String.format("%.2f", sale.totalPortalAmount - sale.portalAmountPaid)}",
                     color = Color(0xFFEF4444),
                     modifier = Modifier.width(100.dp),
                     fontSize = 12.sp,

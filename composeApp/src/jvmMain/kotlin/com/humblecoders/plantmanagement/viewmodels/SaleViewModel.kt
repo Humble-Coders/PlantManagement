@@ -436,12 +436,12 @@ class SaleViewModel(
         for (sale in pendingSales) {
             if (remainingAmount <= 0) break
 
-            val pendingAmount = sale.totalRevenueAmount - sale.revenueAmountPaid
+            val pendingAmount = sale.totalPortalAmount - sale.portalAmountPaid
             val allocationAmount = minOf(remainingAmount, pendingAmount)
 
-            val newAmountPaid = sale.revenueAmountPaid + allocationAmount
+            val newAmountPaid = sale.portalAmountPaid + allocationAmount
             val newPaymentStatus = when {
-                newAmountPaid >= sale.totalRevenueAmount -> SaleStatus.PAID
+                newAmountPaid >= sale.totalPortalAmount -> SaleStatus.PAID
                 newAmountPaid > 0 -> SaleStatus.PARTIALLY_PAID
                 else -> SaleStatus.PENDING
             }
@@ -454,8 +454,9 @@ class SaleViewModel(
                     customerId = sale.customerId,
                     billNumber = sale.billNumber,
                     totalRevenueAmount = sale.totalRevenueAmount,
+                    totalPortalAmount = sale.totalPortalAmount,
                     allocatedAmount = allocationAmount,
-                    previousAmountPaid = sale.revenueAmountPaid,
+                    previousAmountPaid = sale.portalAmountPaid,
                     newAmountPaid = newAmountPaid,
                     previousPaymentStatus = sale.saleStatus,
                     newPaymentStatus = newPaymentStatus,
@@ -518,6 +519,8 @@ class SaleViewModel(
                     saleDate = sale.saleDate,
                     customerId = sale.customerId,
                     billNumber = sale.billNumber,
+                    totalRevenueAmount = sale.totalRevenueAmount,
+                    totalPortalAmount = sale.totalPortalAmount,
                     differenceAmount = sale.differenceAmount,
                     allocatedAmount = allocationAmount,
                     previousAmountPaid = sale.differenceAmountPaid,

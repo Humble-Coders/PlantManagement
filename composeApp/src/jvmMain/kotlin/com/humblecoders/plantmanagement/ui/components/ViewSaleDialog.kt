@@ -227,8 +227,8 @@ fun ViewSaleDialog(
                                 Text("Payment Status", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
                                 Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
 
-                                DetailRow("Revenue Amount Paid", "₹ ${String.format("%.2f", sale.revenueAmountPaid)}")
-                                DetailRow("Revenue Pending", "₹ ${String.format("%.2f", sale.totalRevenueAmount - sale.revenueAmountPaid)}", valueColor = Color(0xFFEF4444))
+                                DetailRow("Portal Amount Paid", "₹ ${String.format("%.2f", sale.portalAmountPaid)}")
+                                DetailRow("Portal Pending", "₹ ${String.format("%.2f", sale.totalPortalAmount - sale.portalAmountPaid)}", valueColor = Color(0xFFEF4444))
                                 DetailRow(
                                     "Sale Status",
                                     sale.saleStatus.name.replace("_", " "),

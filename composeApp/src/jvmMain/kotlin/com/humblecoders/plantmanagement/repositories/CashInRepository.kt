@@ -56,7 +56,7 @@ class CashInRepository(
                 saleData.forEach { (allocation, saleRef, saleDoc) ->
                     if (saleDoc.exists()) {
                         val updateData = mutableMapOf<String, Any>(
-                            "revenueAmountPaid" to allocation.newAmountPaid,
+                            "portalAmountPaid" to allocation.newAmountPaid,
                             "saleStatus" to allocation.newPaymentStatus.name
                         )
                         transaction.update(saleRef, updateData)
@@ -86,6 +86,7 @@ class CashInRepository(
                         "customerId" to allocation.customerId,
                         "billNumber" to allocation.billNumber,
                         "totalRevenueAmount" to allocation.totalRevenueAmount,
+                        "totalPortalAmount" to allocation.totalPortalAmount,
                         "allocatedAmount" to allocation.allocatedAmount,
                         "previousAmountPaid" to allocation.previousAmountPaid,
                         "newAmountPaid" to allocation.newAmountPaid,
@@ -259,7 +260,7 @@ class CashInRepository(
                             revenueAmount = doc.getDouble("revenueAmount") ?: 0.0,
                             totalRevenueAmount = doc.getDouble("totalRevenueAmount") ?: 0.0,
                             differenceAmount = doc.getDouble("differenceAmount") ?: 0.0,
-                            revenueAmountPaid = doc.getDouble("revenueAmountPaid") ?: 0.0,
+                            portalAmountPaid = doc.getDouble("portalAmountPaid") ?: 0.0,
                             saleStatus = saleStatus,
                             differenceAmountPaid = doc.getDouble("differenceAmountPaid") ?: 0.0,
                             differenceStatus = DifferenceStatus.valueOf(doc.getString("differenceStatus") ?: "PENDING"),
@@ -335,7 +336,7 @@ class CashInRepository(
                             revenueAmount = doc.getDouble("revenueAmount") ?: 0.0,
                             totalRevenueAmount = doc.getDouble("totalRevenueAmount") ?: 0.0,
                             differenceAmount = differenceAmount,
-                            revenueAmountPaid = doc.getDouble("revenueAmountPaid") ?: 0.0,
+                            portalAmountPaid = doc.getDouble("portalAmountPaid") ?: 0.0,
                             saleStatus = SaleStatus.valueOf(doc.getString("saleStatus") ?: "PENDING"),
                             differenceAmountPaid = differenceAmountPaid,
                             differenceStatus = differenceStatus,
@@ -388,6 +389,7 @@ class CashInRepository(
                                     customerId = allocationMap["customerId"] as? String ?: "",
                                     billNumber = allocationMap["billNumber"] as? String ?: "",
                                     totalRevenueAmount = (allocationMap["totalRevenueAmount"] as? Number)?.toDouble() ?: 0.0,
+                                    totalPortalAmount = (allocationMap["totalPortalAmount"] as? Number)?.toDouble() ?: 0.0,
                                     allocatedAmount = (allocationMap["allocatedAmount"] as? Number)?.toDouble() ?: 0.0,
                                     previousAmountPaid = (allocationMap["previousAmountPaid"] as? Number)?.toDouble() ?: 0.0,
                                     newAmountPaid = (allocationMap["newAmountPaid"] as? Number)?.toDouble() ?: 0.0,
@@ -442,6 +444,8 @@ class CashInRepository(
                                     saleDate = allocationMap["saleDate"] as? String ?: "",
                                     customerId = allocationMap["customerId"] as? String ?: "",
                                     billNumber = allocationMap["billNumber"] as? String ?: "",
+                                    totalRevenueAmount = (allocationMap["totalRevenueAmount"] as? Number)?.toDouble() ?: 0.0,
+                                    totalPortalAmount = (allocationMap["totalPortalAmount"] as? Number)?.toDouble() ?: 0.0,
                                     differenceAmount = (allocationMap["differenceAmount"] as? Number)?.toDouble() ?: 0.0,
                                     allocatedAmount = (allocationMap["allocatedAmount"] as? Number)?.toDouble() ?: 0.0,
                                     previousAmountPaid = (allocationMap["previousAmountPaid"] as? Number)?.toDouble() ?: 0.0,

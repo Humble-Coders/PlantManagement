@@ -241,7 +241,7 @@ fun CashInRevenueDialog(
 
                     LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         itemsIndexed(allocations) { index, allocation ->
-                            val pendingAmount = allocation.totalRevenueAmount - allocation.previousAmountPaid
+                            val pendingAmount = allocation.totalPortalAmount - allocation.previousAmountPaid
 
                             Card(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -344,7 +344,7 @@ fun CashInRevenueDialog(
                                     val newAmountPaid = allocation.previousAmountPaid + editedAmount
 
                                     val newPaymentStatus = when {
-                                        newAmountPaid >= allocation.totalRevenueAmount -> com.humblecoders.plantmanagement.data.SaleStatus.PAID
+                                        newAmountPaid >= allocation.totalPortalAmount -> com.humblecoders.plantmanagement.data.SaleStatus.PAID
                                         newAmountPaid > 0 -> com.humblecoders.plantmanagement.data.SaleStatus.PARTIALLY_PAID
                                         else -> com.humblecoders.plantmanagement.data.SaleStatus.PENDING
                                     }

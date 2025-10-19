@@ -331,12 +331,12 @@ class SalePdfGeneratorService {
         <div style="height: 20px;"></div>
         
         <div class="calc-row">
-            <div class="calc-label">Revenue Amount Paid:</div>
-            <div class="calc-value">₹ ${formatAmount(sale.revenueAmountPaid)}</div>
+            <div class="calc-label">Portal Amount Paid:</div>
+            <div class="calc-value">₹ ${formatAmount(sale.portalAmountPaid)}</div>
         </div>
         <div class="calc-row">
-            <div class="calc-label">Revenue Pending:</div>
-            <div class="calc-value" style="color: #DC2626;">₹ ${formatAmount(sale.totalRevenueAmount - sale.revenueAmountPaid)}</div>
+            <div class="calc-label">Portal Pending:</div>
+            <div class="calc-value" style="color: #DC2626;">₹ ${formatAmount(sale.totalPortalAmount - sale.portalAmountPaid)}</div>
         </div>
         
         <div style="height: 10px;"></div>
