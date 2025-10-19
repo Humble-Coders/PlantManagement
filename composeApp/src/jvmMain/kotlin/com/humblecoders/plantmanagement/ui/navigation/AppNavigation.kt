@@ -1,3 +1,4 @@
+
 package com.humblecoders.plantmanagement.ui.navigation
 
 import androidx.compose.runtime.*
@@ -13,7 +14,6 @@ enum class Screen {
     MAIN
 }
 
-// Update AppNavigation.kt
 @Composable
 fun AppNavigation(
     authViewModel: AuthViewModel,
@@ -22,8 +22,9 @@ fun AppNavigation(
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
     cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel,
     cashReportViewModel: com.humblecoders.plantmanagement.viewmodels.CashReportViewModel,
-    expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,  // Add this line
-    productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
+    expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,
+    productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel,
+    saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel  // Add this parameter
 ) {
     val authState = authViewModel.authState
     var currentScreen by remember { mutableStateOf(Screen.LOGIN) }
@@ -59,8 +60,9 @@ fun AppNavigation(
                 inventoryViewModel = inventoryViewModel,
                 cashTransactionViewModel = cashTransactionViewModel,
                 cashReportViewModel = cashReportViewModel,
-                expenseViewModel = expenseViewModel,  // Add this line
-                productionViewModel = productionViewModel
+                expenseViewModel = expenseViewModel,
+                productionViewModel = productionViewModel,
+                saleViewModel = saleViewModel  // Add this parameter
             )
         }
     }

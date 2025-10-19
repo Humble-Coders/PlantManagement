@@ -11,6 +11,7 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.cloud.FirestoreClient
 import com.humblecoders.plantmanagement.repositories.AuthRepository
+import com.humblecoders.plantmanagement.repositories.CashInRepository
 import com.humblecoders.plantmanagement.repositories.EntityRepository
 import com.humblecoders.plantmanagement.repositories.FirebaseAuthRestClient
 import com.humblecoders.plantmanagement.repositories.InventoryRepository
@@ -20,6 +21,7 @@ import com.humblecoders.plantmanagement.repositories.CashOutRepository
 import com.humblecoders.plantmanagement.repositories.CashReportRepository
 import com.humblecoders.plantmanagement.repositories.ExpenseRepository
 import com.humblecoders.plantmanagement.repositories.ProductionRepository
+import com.humblecoders.plantmanagement.repositories.SaleRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
@@ -29,6 +31,7 @@ import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
 import com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel
 import com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
+import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
 import java.io.ByteArrayInputStream
 
 object FirebaseCredentialsHolder {
@@ -89,6 +92,8 @@ fun main() = application {
     var cashReportViewModel: CashReportViewModel? = null
     var productionViewModel: ProductionViewModel? = null
     var expenseViewModel: ExpenseViewModel? = null
+    var saleViewModel: SaleViewModel? = null
+
 
 
 
@@ -121,6 +126,10 @@ fun main() = application {
             
             val cashReportRepository = CashReportRepository(firestoreNonNull)
             cashReportViewModel = CashReportViewModel(cashReportRepository, storageService)
+
+            val saleRepository = SaleRepository(firestoreNonNull, currentUser.uid, appId)
+            val cashInRepository = CashInRepository(firestoreNonNull, currentUser.uid, appId)
+            saleViewModel = SaleViewModel(saleRepository, cashInRepository)
             
             val expenseRepository= ExpenseRepository(
                 firestoreNonNull,
@@ -144,7 +153,8 @@ fun main() = application {
                 cashTransactionViewModel = cashTransactionViewModel!!,
                 cashReportViewModel = cashReportViewModel!!,
                 productionViewModel = productionViewModel!!,
-                expenseViewModel = expenseViewModel!!
+                expenseViewModel = expenseViewModel!!,
+                saleViewModel = saleViewModel!!
             )
         } else {
             AppNavigation(
@@ -183,8 +193,11 @@ fun main() = application {
                         storageService = storageService  // Use the same storageService instance
                     ),
                     storageService = storageService
-                )
-            )
+                ),
+                saleViewModel = SaleViewModel(
+                    SaleRepository(firestoreNonNull, "", appId),
+                    CashInRepository(firestoreNonNull, "", appId)  // Add this line
+                )            )
         }
     }
 }

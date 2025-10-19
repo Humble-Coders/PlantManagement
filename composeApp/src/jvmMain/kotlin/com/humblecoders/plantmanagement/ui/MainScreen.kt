@@ -25,7 +25,6 @@ data class MenuItemData(
     val icon: ImageVector
 )
 
-// Update the MenuItem enum
 enum class MenuItem {
     DASHBOARD,
     PRODUCTION,
@@ -43,7 +42,6 @@ enum class MenuItem {
     PROFILE
 }
 
-// Update MainScreen composable signature
 @Composable
 fun MainScreen(
     authViewModel: AuthViewModel,
@@ -54,6 +52,7 @@ fun MainScreen(
     cashReportViewModel: com.humblecoders.plantmanagement.viewmodels.CashReportViewModel,
     productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel,
     expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,
+    saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel  // Add this parameter
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
     val authState = authViewModel.authState
@@ -83,8 +82,10 @@ fun MainScreen(
                 MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel, user?.role)
                 MenuItem.CUSTOMERS -> EntityScreen(entityViewModel, user?.role, cashTransactionViewModel)
                 MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
-                MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { /* No back action needed in main navigation */ }
-                MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel){ /* No back action needed in main navigation */ }
+                MenuItem.SALE -> SaleScreen(saleViewModel, entityViewModel, inventoryViewModel, user?.role)
+                MenuItem.PENDING_BILLS -> PendingBillsScreen(saleViewModel, user?.role)
+                MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { }
+                MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel) { }
                 MenuItem.PROFILE -> ProfileContent(authViewModel)
                 else -> PlaceholderContent(selectedMenuItem.name)
             }
@@ -105,7 +106,7 @@ fun SidebarMenu(
         MenuItemData(MenuItem.PURCHASE, "Purchase", Icons.Default.ShoppingCart),
         MenuItemData(MenuItem.SALE, "Sale", Icons.Default.Star),
         MenuItemData(MenuItem.PENDING_BILLS, "Pending Bills", Icons.Default.DateRange),
-        MenuItemData(MenuItem.EXPENSES, "Expenses", Icons.Default.Receipt),  // Add this line
+        MenuItemData(MenuItem.EXPENSES, "Expenses", Icons.Default.Receipt),
         MenuItemData(MenuItem.CUSTOMERS, "Customers", Icons.Default.Person),
         MenuItemData(MenuItem.CASH_REPORT, "Cash Report", Icons.Default.AccountBalance),
         MenuItemData(MenuItem.LEDGER, "Ledger", Icons.Default.Menu),
@@ -122,7 +123,6 @@ fun SidebarMenu(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // App Title
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -144,7 +144,6 @@ fun SidebarMenu(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Menu Items
         menuItems.forEach { menuItem ->
             MenuItemRow(
                 menuItemData = menuItem,
@@ -160,14 +159,12 @@ fun SidebarMenu(
             modifier = Modifier.padding(vertical = 8.dp)
         )
 
-        // Profile at bottom
         MenuItemRow(
             menuItemData = MenuItemData(MenuItem.PROFILE, "Profile", Icons.Default.AccountCircle),
             isSelected = selectedItem == MenuItem.PROFILE,
             onClick = { onItemSelected(MenuItem.PROFILE) }
         )
 
-        // Role badge
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -242,7 +239,6 @@ fun DashboardContent() {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Metrics Grid
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -299,7 +295,6 @@ fun DashboardContent() {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Additional Info Cards
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
