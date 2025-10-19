@@ -472,4 +472,63 @@ class PurchaseRepository(
                 }
             }
     }
+    
+    /**
+     * Get purchases by customer ID
+     */
+    suspend fun getPurchasesByCustomerId(customerId: String): Result<List<Purchase>> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val snapshot = getPurchasesCollection()
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("customerId", customerId)
+                .get()
+                .get(10, TimeUnit.SECONDS)
+
+            val purchases = snapshot.documents.mapNotNull { doc ->
+                try {
+                    val itemsData = doc.get("items") as? List<*>
+                    val items = itemsData?.mapNotNull { itemData ->
+                        val itemMap = itemData as? Map<*, *>
+                        if (itemMap != null) {
+                            PurchaseItem(
+                                inventoryItemId = itemMap["inventoryItemId"] as? String ?: "",
+                                itemName = itemMap["itemName"] as? String ?: "",
+                                quantity = (itemMap["quantity"] as? Number)?.toDouble() ?: 0.0,
+                                unit = itemMap["unit"] as? String ?: "kg",
+                                pricePerUnit = (itemMap["pricePerUnit"] as? Number)?.toDouble() ?: 0.0,
+                                totalPrice = (itemMap["totalPrice"] as? Number)?.toDouble() ?: 0.0
+                            )
+                        } else null
+                    } ?: emptyList()
+
+                    Purchase(
+                        id = doc.id,
+                        userId = doc.getString("userId") ?: "",
+                        customerId = doc.getString("customerId") ?: "",
+                        firmName = doc.getString("firmName") ?: "",
+                        purchaseDate = doc.getString("purchaseDate") ?: "",
+                        items = items,
+                        totalAmount = doc.getDouble("totalAmount") ?: 0.0,
+                        gstRate = doc.getDouble("gstRate") ?: 0.0,
+                        gstAmount = doc.getDouble("gstAmount") ?: 0.0,
+                        grandTotal = doc.getDouble("grandTotal") ?: 0.0,
+                        paymentStatus = PaymentStatus.valueOf(doc.getString("paymentStatus") ?: "PENDING"),
+                        amountPaid = doc.getDouble("amountPaid") ?: 0.0,
+                        notes = doc.getString("notes") ?: "",
+                        imageUrl = doc.getString("imageUrl") ?: "",
+                        status = TransactionStatus.valueOf(doc.getString("status") ?: "APPROVED"),
+                        reversedAt = doc.getTimestamp("reversedAt"),
+                        reversalReason = doc.getString("reversalReason") ?: "",
+                        createdAt = doc.getTimestamp("createdAt")
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            Result.success(purchases)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

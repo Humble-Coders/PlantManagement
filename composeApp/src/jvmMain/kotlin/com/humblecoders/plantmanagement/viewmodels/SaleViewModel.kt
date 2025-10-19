@@ -418,6 +418,30 @@ class SaleViewModel(
     }
 
     /**
+     * Get sales by customer ID
+     */
+    fun getSalesByCustomerId(customerId: String) {
+        viewModelScope.launch {
+            saleState = saleState.copy(isLoading = true, error = null)
+            
+            val result = saleRepository.getSalesByCustomerId(customerId)
+            
+            saleState = if (result.isSuccess) {
+                saleState.copy(
+                    isLoading = false,
+                    sales = result.getOrNull() ?: emptyList(),
+                    error = null
+                )
+            } else {
+                saleState.copy(
+                    isLoading = false,
+                    error = result.exceptionOrNull()?.message ?: "Failed to load sales"
+                )
+            }
+        }
+    }
+
+    /**
      * Clear messages
      */
     fun clearMessages() {

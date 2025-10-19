@@ -56,6 +56,7 @@ fun MainScreen(
     storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
+    var selectedCustomer by remember { mutableStateOf<com.humblecoders.plantmanagement.data.Entity?>(null) }
     val authState = authViewModel.authState
     val user = authState.currentUser
 
@@ -77,18 +78,39 @@ fun MainScreen(
                 .background(Color(0xFF111827))
                 .padding(24.dp)
         ) {
-            when (selectedMenuItem) {
-                MenuItem.DASHBOARD -> DashboardContent()
-                MenuItem.PRODUCTION -> ProductionScreen(productionViewModel, inventoryViewModel, user?.role)
-                MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel, user?.role)
-                MenuItem.CUSTOMERS -> EntityScreen(entityViewModel, user?.role, cashTransactionViewModel)
-                MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
-                MenuItem.SALE -> SaleScreen(saleViewModel, entityViewModel, inventoryViewModel, storageService, user?.role)
-                MenuItem.PENDING_BILLS -> PendingBillsScreen(saleViewModel, user?.role)
-                MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { }
-                MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel) { }
-                MenuItem.PROFILE -> ProfileContent(authViewModel)
-                else -> PlaceholderContent(selectedMenuItem.name)
+            when {
+                selectedCustomer != null -> {
+                    CustomerDetailScreen(
+                        customer = selectedCustomer!!,
+                        saleViewModel = saleViewModel,
+                        purchaseViewModel = purchaseViewModel,
+                        cashTransactionViewModel = cashTransactionViewModel,
+                        onBack = { selectedCustomer = null }
+                    )
+                }
+                else -> {
+                    when (selectedMenuItem) {
+                        MenuItem.DASHBOARD -> DashboardContent()
+                        MenuItem.PRODUCTION -> ProductionScreen(productionViewModel, inventoryViewModel, user?.role)
+                        MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel, user?.role)
+                        MenuItem.CUSTOMERS -> EntityScreen(
+                            entityViewModel, 
+                            user?.role, 
+                            cashTransactionViewModel,
+                            saleViewModel,
+                            purchaseViewModel,
+                            onNavigateToCustomerDetail = { customer -> selectedCustomer = customer }
+                        )
+                        MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
+                        MenuItem.SALE -> SaleScreen(saleViewModel, entityViewModel, inventoryViewModel, storageService, user?.role)
+                        MenuItem.PENDING_BILLS -> PendingBillsScreen(saleViewModel, user?.role)
+                        MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { }
+                        MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel) { }
+                        MenuItem.LEDGER -> LedgerScreen(entityViewModel, saleViewModel, purchaseViewModel, cashTransactionViewModel)
+                        MenuItem.PROFILE -> ProfileContent(authViewModel)
+                        else -> PlaceholderContent(selectedMenuItem.name)
+                    }
+                }
             }
         }
     }

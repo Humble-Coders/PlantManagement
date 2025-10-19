@@ -103,6 +103,33 @@ class CashTransactionViewModel(
         }
     }
     
+    /**
+     * Get cash transactions by customer ID
+     */
+    fun getCashTransactionsByCustomerId(customerId: String) {
+        viewModelScope.launch {
+            cashTransactionState = cashTransactionState.copy(isLoading = true, error = null)
+            
+            val result = cashTransactionRepository.getCashTransactionsByCustomerId(customerId)
+            
+            result.fold(
+                onSuccess = { transactions ->
+                    cashTransactionState = cashTransactionState.copy(
+                        isLoading = false,
+                        transactions = transactions,
+                        error = null
+                    )
+                },
+                onFailure = { exception ->
+                    cashTransactionState = cashTransactionState.copy(
+                        isLoading = false,
+                        error = exception.message ?: "Failed to load cash transactions"
+                    )
+                }
+            )
+        }
+    }
+    
     fun clearMessages() {
         cashTransactionState = cashTransactionState.copy(
             error = null,

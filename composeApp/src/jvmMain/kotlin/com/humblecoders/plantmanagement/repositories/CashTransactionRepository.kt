@@ -243,4 +243,41 @@ class CashTransactionRepository(
             Result.failure(e)
         }
     }
+    
+    /**
+     * Get cash transactions by customer ID
+     */
+    suspend fun getCashTransactionsByCustomerId(customerId: String): Result<List<CashTransaction>> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val snapshot = getCashTransactionsCollection()
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("customerId", customerId)
+                .orderBy("createdAt", com.google.cloud.firestore.Query.Direction.DESCENDING)
+                .get()
+                .get(10, TimeUnit.SECONDS)
+
+            val transactions = snapshot.documents.mapNotNull { doc ->
+                try {
+                    CashTransaction(
+                        id = doc.id,
+                        userId = doc.getString("userId") ?: "",
+                        customerId = doc.getString("customerId") ?: "",
+                        customerName = doc.getString("customerName") ?: "",
+                        amount = doc.getDouble("amount") ?: 0.0,
+                        transactionType = CashTransactionType.valueOf(doc.getString("transactionType") ?: "RECEIVE"),
+                        note = doc.getString("note") ?: "",
+                        previousBalance = doc.getDouble("previousBalance") ?: 0.0,
+                        newBalance = doc.getDouble("newBalance") ?: 0.0,
+                        createdAt = doc.getTimestamp("createdAt")
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            Result.success(transactions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

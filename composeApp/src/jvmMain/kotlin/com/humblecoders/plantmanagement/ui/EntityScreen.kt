@@ -40,7 +40,10 @@ import com.humblecoders.plantmanagement.utils.PdfExportUtils
 fun EntityScreen(
     entityViewModel: EntityViewModel, 
     userRole: UserRole? = null,
-    cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel? = null
+    cashTransactionViewModel: com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel? = null,
+    saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel? = null,
+    purchaseViewModel: com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel? = null,
+    onNavigateToCustomerDetail: (Entity) -> Unit = {}
 ) {
     val entityState = entityViewModel.entityState
     var showAddDialog by remember { mutableStateOf(false) }
@@ -289,7 +292,13 @@ fun EntityScreen(
                 // Entity table
                 EntityTable(
                     entities = entityViewModel.getFilteredAndSortedEntities(),
-                    onEntityClick = { selectedEntityForLedger = it },
+                    onEntityClick = { entity ->
+                        if (saleViewModel != null && purchaseViewModel != null && cashTransactionViewModel != null) {
+                            onNavigateToCustomerDetail(entity)
+                        } else {
+                            selectedEntityForLedger = entity
+                        }
+                    },
                     onEditClick = {
                         entityToEdit = it
                         showEditDialog = true

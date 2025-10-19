@@ -275,6 +275,30 @@ class PurchaseViewModel(
         return sorted
     }
 
+    /**
+     * Get purchases by customer ID
+     */
+    fun getPurchasesByCustomerId(customerId: String) {
+        viewModelScope.launch {
+            purchaseState = purchaseState.copy(isLoading = true, error = null)
+            
+            val result = purchaseRepository.getPurchasesByCustomerId(customerId)
+            
+            purchaseState = if (result.isSuccess) {
+                purchaseState.copy(
+                    isLoading = false,
+                    purchases = result.getOrNull() ?: emptyList(),
+                    error = null
+                )
+            } else {
+                purchaseState.copy(
+                    isLoading = false,
+                    error = result.exceptionOrNull()?.message ?: "Failed to load purchases"
+                )
+            }
+        }
+    }
+
     fun clearMessages() {
         purchaseState = purchaseState.copy(error = null, successMessage = null)
     }
