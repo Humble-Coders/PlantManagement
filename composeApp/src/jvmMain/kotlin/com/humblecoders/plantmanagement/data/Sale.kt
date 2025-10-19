@@ -36,6 +36,7 @@ data class Sale(
     val fareAmount: Double = 0.0,
     val farePaidBy: FarePaidBy = FarePaidBy.COMPANY,
     val notes: String = "",
+    val imageUrls: List<String> = emptyList(),
     val status: TransactionStatus = TransactionStatus.APPROVED,
     val reversedAt: Timestamp? = null,
     val reversalReason: String = "",

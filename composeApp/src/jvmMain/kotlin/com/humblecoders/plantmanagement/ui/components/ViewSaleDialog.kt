@@ -1,13 +1,16 @@
 package com.humblecoders.plantmanagement.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -287,6 +290,32 @@ fun ViewSaleDialog(
                         }
                     }
 
+                    // Images
+                    if (sale.imageUrls.isNotEmpty()) {
+                        item {
+                            Card(backgroundColor = Color(0xFF111827), shape = RoundedCornerShape(8.dp)) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Sale Images", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                    Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
+                                    
+                                    // Display images in a grid
+                                    androidx.compose.foundation.lazy.LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        contentPadding = PaddingValues(vertical = 4.dp)
+                                    ) {
+                                        items(sale.imageUrls.size) { index ->
+                                            val imageUrl = sale.imageUrls[index]
+                                            SaleImageItem(
+                                                imageUrl = imageUrl,
+                                                imageIndex = index + 1
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Notes
                     if (sale.notes.isNotBlank()) {
                         item {
@@ -312,6 +341,203 @@ fun ViewSaleDialog(
                     Button(
                         onClick = onDismiss,
                         colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981))
+                    ) {
+                        Text("Close", color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SaleImageItem(
+    imageUrl: String,
+    imageIndex: Int
+) {
+    var showImageDialog by remember { mutableStateOf(false) }
+    
+    Card(
+        modifier = Modifier
+            .size(120.dp)
+            .clickable { showImageDialog = true },
+        backgroundColor = Color(0xFF374151),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Show actual image thumbnail
+            AsyncImage(
+                imageUrl = imageUrl,
+                contentDescription = "Sale Image $imageIndex",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                placeholder = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF374151)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color(0xFF10B981),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Loading...",
+                                color = Color(0xFF9CA3AF),
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                },
+                error = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF374151)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Image,
+                                contentDescription = "Image",
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Image $imageIndex",
+                                color = Color(0xFFF9FAFB),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "Click to view",
+                                color = Color(0xFF9CA3AF),
+                                fontSize = 8.sp
+                            )
+                        }
+                    }
+                }
+            )
+            
+            // Overlay with image number and click hint
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Color(0x80000000),
+                        RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)
+                    )
+                    .padding(4.dp)
+            ) {
+                Text(
+                    "Image $imageIndex",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+    
+    // Image viewing dialog
+    if (showImageDialog) {
+        ImageViewDialog(
+            imageUrl = imageUrl,
+            imageIndex = imageIndex,
+            onDismiss = { showImageDialog = false }
+        )
+    }
+}
+
+@Composable
+fun ImageViewDialog(
+    imageUrl: String,
+    imageIndex: Int,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .width(800.dp)
+                .height(600.dp),
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            elevation = 8.dp
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Sale Image $imageIndex",
+                        color = Color(0xFFF9FAFB),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF9CA3AF))
+                    }
+                }
+                
+                // Image content
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        imageUrl = imageUrl,
+                        contentDescription = "Sale Image $imageIndex",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                    )
+                }
+                
+                // Footer with action buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF111827))
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = {
+                            // Open image in browser
+                            try {
+                                java.awt.Desktop.getDesktop().browse(java.net.URI(imageUrl))
+                            } catch (e: Exception) {
+                                println("Error opening browser: ${e.message}")
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981))
+                    ) {
+                        Text("Open in Browser", color = Color.White)
+                    }
+                    
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF6B7280))
                     ) {
                         Text("Close", color = Color.White)
                     }

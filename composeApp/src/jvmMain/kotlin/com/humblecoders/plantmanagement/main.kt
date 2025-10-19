@@ -129,7 +129,7 @@ fun main() = application {
 
             val saleRepository = SaleRepository(firestoreNonNull, currentUser.uid, appId)
             val cashInRepository = CashInRepository(firestoreNonNull, currentUser.uid, appId)
-            saleViewModel = SaleViewModel(saleRepository, cashInRepository)
+            saleViewModel = SaleViewModel(saleRepository, cashInRepository, storageService)
             
             val expenseRepository= ExpenseRepository(
                 firestoreNonNull,
@@ -154,7 +154,8 @@ fun main() = application {
                 cashReportViewModel = cashReportViewModel!!,
                 productionViewModel = productionViewModel!!,
                 expenseViewModel = expenseViewModel!!,
-                saleViewModel = saleViewModel!!
+                saleViewModel = saleViewModel!!,
+                storageService = storageService
             )
         } else {
             AppNavigation(
@@ -196,8 +197,11 @@ fun main() = application {
                 ),
                 saleViewModel = SaleViewModel(
                     SaleRepository(firestoreNonNull, "", appId),
-                    CashInRepository(firestoreNonNull, "", appId)  // Add this line
-                )            )
+                    CashInRepository(firestoreNonNull, "", appId),
+                    storageService
+                ),
+                storageService = storageService
+            )
         }
     }
 }

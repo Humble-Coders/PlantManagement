@@ -2,6 +2,7 @@ package com.humblecoders.plantmanagement.utils
 
 import com.humblecoders.plantmanagement.data.InventoryItem
 import com.humblecoders.plantmanagement.data.Entity
+import com.humblecoders.plantmanagement.data.Sale
 
 object PdfExportUtils {
     
@@ -161,6 +162,48 @@ object PdfExportUtils {
                 val balance = String.format("%.2f", e.balance)
                 val balanceText = if (e.balance >= 0) "Rs. $balance" else "Rs. $balance (Credit)"
                 "Balance: $balanceText"
+            }
+        )
+    }
+
+    // Sales export
+    fun exportSales(sales: List<Sale>) {
+        val columns = listOf(
+            ColumnDefinition("Customer", "20%", { (it as Sale).firmName }),
+            ColumnDefinition("Sale Date", "12%", { 
+                try {
+                    java.time.LocalDate.parse((it as Sale).saleDate)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                } catch (e: Exception) {
+                    (it as Sale).saleDate
+                }
+            }),
+            ColumnDefinition("Bill No.", "12%", { (it as Sale).billNumber }),
+            ColumnDefinition("Portal Batch", "12%", { (it as Sale).portalBatchNumber }),
+            ColumnDefinition("Quantity (Kg)", "10%", { String.format("%.2f", (it as Sale).quantityKg) }, true),
+            ColumnDefinition("Rate/Kg", "10%", { "₹ ${String.format("%.2f", (it as Sale).originalRatePerKg)}" }, true),
+            ColumnDefinition("Total Revenue", "12%", { "₹ ${String.format("%.2f", (it as Sale).totalRevenueAmount)}" }, true),
+            ColumnDefinition("Status", "12%", { (it as Sale).saleStatus.name.replace("_", " ") })
+        )
+
+        exportToPdf(
+            title = "Sales Report",
+            fileName = "sales_report_${System.currentTimeMillis()}.pdf",
+            data = sales,
+            columns = columns,
+            itemDetailsExtractor = { sale ->
+                val s = sale as Sale
+                val paidAmount = String.format("%.2f", s.revenueAmountPaid)
+                val pendingAmount = String.format("%.2f", s.totalRevenueAmount - s.revenueAmountPaid)
+                val differenceAmount = String.format("%.2f", s.differenceAmount)
+                val differenceText = if (s.differenceAmount >= 0) "+₹$differenceAmount" else "-₹${kotlin.math.abs(s.differenceAmount)}"
+                
+                buildString {
+                    append("Paid: ₹$paidAmount | Pending: ₹$pendingAmount | Difference: $differenceText")
+                    if (s.notes.isNotBlank()) {
+                        append(" | Notes: ${s.notes}")
+                    }
+                }
             }
         )
     }

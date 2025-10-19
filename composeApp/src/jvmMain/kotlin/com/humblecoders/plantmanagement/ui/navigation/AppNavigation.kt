@@ -24,7 +24,8 @@ fun AppNavigation(
     cashReportViewModel: com.humblecoders.plantmanagement.viewmodels.CashReportViewModel,
     expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,
     productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel,
-    saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel  // Add this parameter
+    saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel,
+    storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     val authState = authViewModel.authState
     var currentScreen by remember { mutableStateOf(Screen.LOGIN) }
@@ -62,7 +63,8 @@ fun AppNavigation(
                 cashReportViewModel = cashReportViewModel,
                 expenseViewModel = expenseViewModel,
                 productionViewModel = productionViewModel,
-                saleViewModel = saleViewModel  // Add this parameter
+                saleViewModel = saleViewModel,
+                storageService = storageService
             )
         }
     }

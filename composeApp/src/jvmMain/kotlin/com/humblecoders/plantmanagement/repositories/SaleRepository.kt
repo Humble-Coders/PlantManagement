@@ -47,6 +47,7 @@ class SaleRepository(
                 "fareAmount" to sale.fareAmount,
                 "farePaidBy" to sale.farePaidBy.name,
                 "notes" to sale.notes,
+                "imageUrls" to sale.imageUrls,
                 "status" to sale.status.name,
                 "createdAt" to com.google.cloud.Timestamp.now()
             )
@@ -134,7 +135,8 @@ class SaleRepository(
                 "truckNumber" to sale.truckNumber,
                 "fareAmount" to sale.fareAmount,
                 "farePaidBy" to sale.farePaidBy.name,
-                "notes" to sale.notes
+                "notes" to sale.notes,
+                "imageUrls" to sale.imageUrls
             )
 
             firestore.runTransaction { transaction ->
@@ -414,6 +416,7 @@ class SaleRepository(
                                     doc.getString("farePaidBy") ?: "COMPANY"
                                 ),
                                 notes = doc.getString("notes") ?: "",
+                                imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
                                 status = TransactionStatus.valueOf(
                                     doc.getString("status") ?: "APPROVED"
                                 ),

@@ -22,14 +22,19 @@ import androidx.compose.ui.unit.sp
 import com.humblecoders.plantmanagement.data.*
 import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
 import com.humblecoders.plantmanagement.ui.components.DatePicker
+import com.humblecoders.plantmanagement.services.FirebaseStorageService
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddSaleDialog(
     customers: List<Entity>,
     saleViewModel: SaleViewModel,
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
+    storageService: FirebaseStorageService,
     onDismiss: () -> Unit,
     onSave: (Sale) -> Unit
 ) {
@@ -57,6 +62,10 @@ fun AddSaleDialog(
     var farePaidBy by remember { mutableStateOf(FarePaidBy.COMPANY) }
 
     var notes by remember { mutableStateOf("") }
+
+    // Image upload state
+    var selectedImages by remember { mutableStateOf<List<File>>(emptyList()) }
+    var isUploadingImages by remember { mutableStateOf(false) }
 
     // Inventory validation state
     var inventoryError by remember { mutableStateOf("") }
@@ -576,6 +585,19 @@ fun AddSaleDialog(
                         }
                     }
 
+                    // Image Upload Section
+                    item {
+                        Divider(color = Color(0xFF374151))
+                    }
+
+                    item {
+                        ImageUploadComponent(
+                            selectedImages = selectedImages,
+                            onImagesSelected = { selectedImages = it },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
                     // Notes
                     item {
                         OutlinedTextField(
@@ -647,66 +669,152 @@ fun AddSaleDialog(
                                 return@Button // Don't save if there's an inventory error
                             }
                             
-                            val selectedEntity = customers.find { it.id == selectedEntityId }
-                            val qty = quantityKg.toDoubleOrNull() ?: 0.0
-                            val bags = (qty / 25.0).toInt()
-                            val revPaid = revenueAmountPaid.toDoubleOrNull() ?: 0.0
+                            // Start image upload process
+                            if (selectedImages.isNotEmpty()) {
+                                isUploadingImages = true
+                                
+                                // Upload images in background - we'll handle this with a coroutine scope
+                                GlobalScope.launch {
+                                    val imageUrls = mutableListOf<String>()
+                                    
+                                    for (imageFile in selectedImages) {
+                                        val uploadResult = storageService.uploadImage(imageFile, "sales")
+                                        if (uploadResult.isSuccess) {
+                                            imageUrls.add(uploadResult.getOrNull() ?: "")
+                                        }
+                                    }
+                                    
+                                    isUploadingImages = false
+                                    
+                                    // Create and save sale with uploaded image URLs
+                                    val selectedEntity = customers.find { it.id == selectedEntityId }
+                                    val qty = quantityKg.toDoubleOrNull() ?: 0.0
+                                    val bags = (qty / 25.0).toInt()
+                                    val revPaid = revenueAmountPaid.toDoubleOrNull() ?: 0.0
 
-                            val saleStatus = when {
-                                revPaid >= calculation.totalRevenueAmount -> SaleStatus.PAID
-                                revPaid > 0 -> SaleStatus.PARTIALLY_PAID
-                                else -> SaleStatus.PENDING
-                            }
+                                    val saleStatus = when {
+                                        revPaid >= calculation.totalRevenueAmount -> SaleStatus.PAID
+                                        revPaid > 0 -> SaleStatus.PARTIALLY_PAID
+                                        else -> SaleStatus.PENDING
+                                    }
 
-                            // Difference status: PAID if zero difference, PENDING otherwise
-                            val differenceStatus = if (kotlin.math.abs(calculation.differenceAmount) == 0.0) {
-                                DifferenceStatus.PAID
+                                    // Difference status: PAID if zero difference, PENDING otherwise
+                                    val differenceStatus = if (kotlin.math.abs(calculation.differenceAmount) == 0.0) {
+                                        DifferenceStatus.PAID
+                                    } else {
+                                        DifferenceStatus.PENDING
+                                    }
+
+                                    onSave(
+                                        Sale(
+                                            customerId = selectedEntityId,
+                                            firmName = selectedEntity?.firmName ?: "",
+                                            saleDate = saleDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                                            billNumber = billNumber,
+                                            portalBatchNumber = portalBatchNumber,
+                                            quantityKg = qty,
+                                            numberOfBags = bags,
+                                            deductFromInventory = deductFromInventory,
+                                            originalRatePerKg = originalRatePerKg.toDoubleOrNull() ?: 0.0,
+                                            portalAmount = calculation.portalAmount,
+                                            gstAmount = calculation.gstAmount,
+                                            totalPortalAmount = calculation.totalPortalAmount,
+                                            discountType = discountType,
+                                            discountedRatePerKg = discountedRatePerKg.toDoubleOrNull() ?: 0.0,
+                                            extraQuantityKg = extraQuantityKg.toDoubleOrNull() ?: 0.0,
+                                            revenueAmount = calculation.revenueAmount,
+                                            totalRevenueAmount = calculation.totalRevenueAmount,
+                                            differenceAmount = calculation.differenceAmount,
+                                            revenueAmountPaid = revPaid,
+                                            saleStatus = saleStatus,
+                                            differenceAmountPaid = 0.0, // Always 0 when adding a sale
+                                            differenceStatus = differenceStatus,
+                                            billingStatus = billingStatus,
+                                            clearedInventory = if (billingStatus == BillingStatus.PENDING_BILLED) 0.0 else qty,
+                                            truckNumber = truckNumber,
+                                            fareAmount = fareAmount.toDoubleOrNull() ?: 0.0,
+                                            farePaidBy = farePaidBy,
+                                            notes = notes,
+                                            imageUrls = imageUrls
+                                        )
+                                    )
+                                }
                             } else {
-                                DifferenceStatus.PENDING
-                            }
+                                // No images to upload, save directly
+                                val selectedEntity = customers.find { it.id == selectedEntityId }
+                                val qty = quantityKg.toDoubleOrNull() ?: 0.0
+                                val bags = (qty / 25.0).toInt()
+                                val revPaid = revenueAmountPaid.toDoubleOrNull() ?: 0.0
 
-                            onSave(
-                                Sale(
-                                    customerId = selectedEntityId,
-                                    firmName = selectedEntity?.firmName ?: "",
-                                    saleDate = saleDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                                    billNumber = billNumber,
-                                    portalBatchNumber = portalBatchNumber,
-                                    quantityKg = qty,
-                                    numberOfBags = bags,
-                                    deductFromInventory = deductFromInventory,
-                                    originalRatePerKg = originalRatePerKg.toDoubleOrNull() ?: 0.0,
-                                    portalAmount = calculation.portalAmount,
-                                    gstAmount = calculation.gstAmount,
-                                    totalPortalAmount = calculation.totalPortalAmount,
-                                    discountType = discountType,
-                                    discountedRatePerKg = discountedRatePerKg.toDoubleOrNull() ?: 0.0,
-                                    extraQuantityKg = extraQuantityKg.toDoubleOrNull() ?: 0.0,
-                                    revenueAmount = calculation.revenueAmount,
-                                    totalRevenueAmount = calculation.totalRevenueAmount,
-                                    differenceAmount = calculation.differenceAmount,
-                                    revenueAmountPaid = revPaid,
-                                    saleStatus = saleStatus,
-                                    differenceAmountPaid = 0.0, // Always 0 when adding a sale
-                                    differenceStatus = differenceStatus,
-                                    billingStatus = billingStatus,
-                                    clearedInventory = if (billingStatus == BillingStatus.PENDING_BILLED) 0.0 else qty,
-                                    truckNumber = truckNumber,
-                                    fareAmount = fareAmount.toDoubleOrNull() ?: 0.0,
-                                    farePaidBy = farePaidBy,
-                                    notes = notes
+                                val saleStatus = when {
+                                    revPaid >= calculation.totalRevenueAmount -> SaleStatus.PAID
+                                    revPaid > 0 -> SaleStatus.PARTIALLY_PAID
+                                    else -> SaleStatus.PENDING
+                                }
+
+                                // Difference status: PAID if zero difference, PENDING otherwise
+                                val differenceStatus = if (kotlin.math.abs(calculation.differenceAmount) == 0.0) {
+                                    DifferenceStatus.PAID
+                                } else {
+                                    DifferenceStatus.PENDING
+                                }
+
+                                onSave(
+                                    Sale(
+                                        customerId = selectedEntityId,
+                                        firmName = selectedEntity?.firmName ?: "",
+                                        saleDate = saleDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                                        billNumber = billNumber,
+                                        portalBatchNumber = portalBatchNumber,
+                                        quantityKg = qty,
+                                        numberOfBags = bags,
+                                        deductFromInventory = deductFromInventory,
+                                        originalRatePerKg = originalRatePerKg.toDoubleOrNull() ?: 0.0,
+                                        portalAmount = calculation.portalAmount,
+                                        gstAmount = calculation.gstAmount,
+                                        totalPortalAmount = calculation.totalPortalAmount,
+                                        discountType = discountType,
+                                        discountedRatePerKg = discountedRatePerKg.toDoubleOrNull() ?: 0.0,
+                                        extraQuantityKg = extraQuantityKg.toDoubleOrNull() ?: 0.0,
+                                        revenueAmount = calculation.revenueAmount,
+                                        totalRevenueAmount = calculation.totalRevenueAmount,
+                                        differenceAmount = calculation.differenceAmount,
+                                        revenueAmountPaid = revPaid,
+                                        saleStatus = saleStatus,
+                                        differenceAmountPaid = 0.0, // Always 0 when adding a sale
+                                        differenceStatus = differenceStatus,
+                                        billingStatus = billingStatus,
+                                        clearedInventory = if (billingStatus == BillingStatus.PENDING_BILLED) 0.0 else qty,
+                                        truckNumber = truckNumber,
+                                        fareAmount = fareAmount.toDoubleOrNull() ?: 0.0,
+                                        farePaidBy = farePaidBy,
+                                        notes = notes,
+                                        imageUrls = emptyList()
+                                    )
                                 )
-                            )
+                            }
                         },
                         enabled = selectedEntityId.isNotBlank() && billNumber.isNotBlank() &&
                                 portalBatchNumber.isNotBlank() && quantityKg.isNotBlank() &&
-                                originalRatePerKg.isNotBlank() && inventoryError.isEmpty(),
+                                originalRatePerKg.isNotBlank() && inventoryError.isEmpty() && !isUploadingImages,
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (inventoryError.isNotEmpty()) Color(0xFF6B7280) else Color(0xFF10B981),
+                            backgroundColor = if (inventoryError.isNotEmpty() || isUploadingImages) Color(0xFF6B7280) else Color(0xFF10B981),
                             disabledBackgroundColor = Color(0xFF9CA3AF)
                         )
                     ) {
-                        Text("Add Sale", color = Color.White)
+                        if (isUploadingImages) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Uploading Images...", color = Color.White)
+                            }
+                        } else {
+                            Text("Add Sale", color = Color.White)
+                        }
                     }
                 }
             }

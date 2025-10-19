@@ -47,7 +47,8 @@ enum class SaleSortField {
 
 class SaleViewModel(
     private val saleRepository: SaleRepository,
-    private val cashInRepository: CashInRepository
+    private val cashInRepository: CashInRepository,
+    private val storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     var saleState by mutableStateOf(SaleState())
         private set

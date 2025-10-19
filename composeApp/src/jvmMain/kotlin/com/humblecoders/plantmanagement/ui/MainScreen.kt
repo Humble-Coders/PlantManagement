@@ -52,7 +52,8 @@ fun MainScreen(
     cashReportViewModel: com.humblecoders.plantmanagement.viewmodels.CashReportViewModel,
     productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel,
     expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,
-    saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel  // Add this parameter
+    saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel,
+    storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
     val authState = authViewModel.authState
@@ -82,7 +83,7 @@ fun MainScreen(
                 MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel, user?.role)
                 MenuItem.CUSTOMERS -> EntityScreen(entityViewModel, user?.role, cashTransactionViewModel)
                 MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
-                MenuItem.SALE -> SaleScreen(saleViewModel, entityViewModel, inventoryViewModel, user?.role)
+                MenuItem.SALE -> SaleScreen(saleViewModel, entityViewModel, inventoryViewModel, storageService, user?.role)
                 MenuItem.PENDING_BILLS -> PendingBillsScreen(saleViewModel, user?.role)
                 MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { }
                 MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel) { }

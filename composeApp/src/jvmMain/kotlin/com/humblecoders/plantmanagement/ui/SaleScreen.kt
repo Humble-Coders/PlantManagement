@@ -35,12 +35,14 @@ import com.humblecoders.plantmanagement.ui.components.ViewSaleDialog
 import com.humblecoders.plantmanagement.ui.components.CashInRevenueDialog
 import com.humblecoders.plantmanagement.ui.components.CashInOutDifferenceDialog
 import com.humblecoders.plantmanagement.ui.components.CashInHistoryDialog
+import com.humblecoders.plantmanagement.utils.PdfExportUtils
 
 @Composable
 fun SaleScreen(
     saleViewModel: SaleViewModel,
     entityViewModel: EntityViewModel,
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
+    storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService,
     userRole: UserRole? = null
 ) {
     val saleState = saleViewModel.saleState
@@ -167,15 +169,35 @@ fun SaleScreen(
                                 Text("History", color = Color(0xFF10B981), fontSize = 13.sp)
                             }
 
-                            Button(
-                                onClick = { showAddDialog = true },
-                                enabled = !saleState.isAdding && !saleState.isLoading,
-                                colors = ButtonDefaults.buttonColors(
-                                    backgroundColor = Color(0xFF10B981),
-                                    disabledBackgroundColor = Color(0xFF9CA3AF)
-                                )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text("Add Sale", color = Color.White)
+                                Button(
+                                    onClick = { showAddDialog = true },
+                                    enabled = !saleState.isAdding && !saleState.isLoading,
+                                    colors = ButtonDefaults.buttonColors(
+                                        backgroundColor = Color(0xFF10B981),
+                                        disabledBackgroundColor = Color(0xFF9CA3AF)
+                                    )
+                                ) {
+                                    Text("Add Sale", color = Color.White)
+                                }
+                                
+                                OutlinedButton(
+                                    onClick = {
+                                        val filteredSales = saleViewModel.getFilteredAndSortedSales()
+                                        PdfExportUtils.exportSales(filteredSales)
+                                    },
+                                    enabled = saleState.sales.isNotEmpty(),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = Color(0xFF10B981)
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981))
+                                ) {
+                                    Icon(Icons.Default.Print, contentDescription = "Print", tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Print Sales", color = Color(0xFF10B981))
+                                }
                             }
                         }
                     }
@@ -362,6 +384,7 @@ fun SaleScreen(
             customers = entityState.entities,
             saleViewModel = saleViewModel,
             inventoryViewModel = inventoryViewModel,
+            storageService = storageService,
             onDismiss = { showAddDialog = false },
             onSave = { sale ->
                 saleViewModel.addSale(sale)
