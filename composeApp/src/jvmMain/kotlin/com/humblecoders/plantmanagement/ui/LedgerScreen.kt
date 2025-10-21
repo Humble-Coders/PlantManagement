@@ -71,19 +71,28 @@ fun LedgerScreen(
             }
             
             val pendingDifferenceAmount = customerSales.sumOf { sale ->
-                sale.differenceAmount - sale.differenceAmountPaid
+                when {
+                    sale.differenceAmount < 0 -> sale.differenceAmount + sale.differenceAmountPaid // Negative: customer owes us, paid amount reduces what they owe
+                    sale.differenceAmount > 0 -> sale.differenceAmount - sale.differenceAmountPaid // Positive: we owe customer, paid amount reduces what we owe
+                    else -> 0.0 // No difference
+                }
             }
             
             val pendingPurchaseAmount = customerPurchases.sumOf { purchase ->
-                purchase.totalAmount - purchase.amountPaid
+                purchase.grandTotal - purchase.amountPaid
             }
             
-            val cashTransactionImpact = customerCashTransactions.sumOf { transaction ->
-                when (transaction.transactionType) {
-                    CashTransactionType.RECEIVE -> -transaction.amount
-                    CashTransactionType.GIVE -> transaction.amount
+            val cashTransactionImpact = customerCashTransactions
+                .filter { 
+                    !it.note.contains("Cash Out from Purchase Module") && 
+                    !it.note.contains("Difference Cash")
+                } // Exclude purchase module cash outs and difference cash transactions
+                .sumOf { transaction ->
+                    when (transaction.transactionType) {
+                        CashTransactionType.RECEIVE -> -transaction.amount
+                        CashTransactionType.GIVE -> transaction.amount
+                    }
                 }
-            }
             
             val netBalance = pendingPortalAmount + pendingDifferenceAmount - pendingPurchaseAmount + cashTransactionImpact
             
@@ -162,6 +171,25 @@ fun LedgerScreen(
                     Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Refresh")
+                }
+                
+                Button(
+                    onClick = { 
+                        printLedgerSummaries(
+                            summaries = filteredAndSortedSummaries,
+                            searchQuery = searchQuery,
+                            sortField = sortField,
+                            sortDirection = sortDirection
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF10B981),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(Icons.Default.Print, contentDescription = "Print")
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Print Ledger")
                 }
             }
         }
@@ -505,5 +533,171 @@ fun LedgerRow(summary: CustomerLedgerSummary) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
+    }
+}
+
+// Print function for ledger summaries
+private fun printLedgerSummaries(
+    summaries: List<CustomerLedgerSummary>,
+    searchQuery: String,
+    sortField: LedgerSortField,
+    sortDirection: LedgerSortDirection
+) {
+    try {
+        val now = java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+        )
+
+        // Calculate totals
+        val totalCustomers = summaries.size
+        val totalNetBalance = summaries.sumOf { it.netBalance }
+        val totalPendingPortal = summaries.sumOf { it.pendingPortalAmount }
+        val totalPendingDifference = summaries.sumOf { it.pendingDifferenceAmount }
+        val totalPendingPurchase = summaries.sumOf { it.pendingPurchaseAmount }
+
+        // Build HTML content
+        val html = buildString {
+            append("""
+                <html>
+                <head>
+                  <meta charset='UTF-8'/>
+                  <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #111; }
+                    .header { margin-bottom: 12px; }
+                    .summary-section { background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+                    .muted { color: #666; font-size: 12px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                    th { background: #f0f2f5; text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; }
+                    td { padding: 8px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+                    .right { text-align: right; }
+                    .amount-positive { color: #10B981; }
+                    .amount-negative { color: #EF4444; }
+                    .amount-warning { color: #F59E0B; }
+                    .amount-info { color: #3B82F6; }
+                    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+                    .summary-item { background: #f8f9fa; padding: 12px; border-radius: 6px; text-align: center; }
+                    .summary-label { font-size: 12px; color: #666; margin-bottom: 4px; }
+                    .summary-value { font-size: 16px; font-weight: bold; }
+                  </style>
+                </head>
+                <body>
+                  <div class='header'>
+                    <h2 style='margin:0 0 4px 0;'>Customer Ledger Report</h2>
+                    <div class='muted'>Generated on: $now • Total Records: $totalCustomers</div>
+                  </div>
+                  
+                  <div class='summary-section'>
+                    <h3 style='margin:0 0 12px 0;'>Filter &amp; Sort Summary</h3>
+                    <div class='muted'>
+                      Search: ${if (searchQuery.isBlank()) "All customers" else "\"$searchQuery\""} | 
+                      Sort: ${when (sortField) {
+                          LedgerSortField.CUSTOMER_NAME -> "Customer Name"
+                          LedgerSortField.PENDING_PORTAL -> "Pending Portal Amount"
+                          LedgerSortField.PENDING_DIFFERENCE -> "Pending Difference Amount"
+                          LedgerSortField.PENDING_PURCHASE -> "Pending Purchase Amount"
+                          LedgerSortField.NET_BALANCE -> "Net Balance"
+                      }} (${if (sortDirection == LedgerSortDirection.ASCENDING) "Ascending" else "Descending"})
+                    </div>
+                  </div>
+                  
+                  <div class='summary-grid'>
+                    <div class='summary-item'>
+                      <div class='summary-label'>Total Customers</div>
+                      <div class='summary-value'>$totalCustomers</div>
+                    </div>
+                    <div class='summary-item'>
+                      <div class='summary-label'>Total Net Balance</div>
+                      <div class='summary-value ${if (totalNetBalance >= 0) "amount-positive" else "amount-negative"}'>₹ ${String.format("%.2f", totalNetBalance)}</div>
+                    </div>
+                    <div class='summary-item'>
+                      <div class='summary-label'>Total Pending Portal</div>
+                      <div class='summary-value amount-warning'>₹ ${String.format("%.2f", totalPendingPortal)}</div>
+                    </div>
+                    <div class='summary-item'>
+                      <div class='summary-label'>Total Pending Difference</div>
+                      <div class='summary-value amount-info'>₹ ${String.format("%.2f", totalPendingDifference)}</div>
+                    </div>
+                    <div class='summary-item'>
+                      <div class='summary-label'>Total Pending Purchase</div>
+                      <div class='summary-value amount-negative'>₹ ${String.format("%.2f", totalPendingPurchase)}</div>
+                    </div>
+                    <div class='summary-item'>
+                      <div class='summary-label'>Average Net Balance</div>
+                      <div class='summary-value ${if (totalNetBalance >= 0) "amount-positive" else "amount-negative"}'>₹ ${String.format("%.2f", if (totalCustomers > 0) totalNetBalance / totalCustomers else 0.0)}</div>
+                    </div>
+                  </div>
+                  
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style='width:25%'>Customer</th>
+                        <th style='width:15%'>Contact</th>
+                        <th style='width:15%'>Pending Portal</th>
+                        <th style='width:15%'>Pending Difference</th>
+                        <th style='width:15%'>Pending Purchase</th>
+                        <th style='width:15%'>Net Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+            """.trimIndent())
+
+            summaries.forEach { summary ->
+                val netBalanceClass = if (summary.netBalance >= 0) "amount-positive" else "amount-negative"
+                val portalClass = if (summary.pendingPortalAmount > 0) "amount-warning" else ""
+                val differenceClass = if (summary.pendingDifferenceAmount > 0) "amount-info" else ""
+                val purchaseClass = if (summary.pendingPurchaseAmount > 0) "amount-negative" else ""
+
+                append("""
+                    <tr>
+                      <td>
+                        <strong>${summary.customer.firmName}</strong><br/>
+                        <span style='color: #666; font-size: 11px;'>${summary.customer.city}, ${summary.customer.state}</span>
+                      </td>
+                      <td>
+                        ${summary.customer.contactPerson}<br/>
+                        <span style='color: #666; font-size: 11px;'>${summary.customer.contactNo}</span>
+                      </td>
+                      <td class='right $portalClass'>₹ ${String.format("%.2f", summary.pendingPortalAmount)}</td>
+                      <td class='right $differenceClass'>₹ ${String.format("%.2f", summary.pendingDifferenceAmount)}</td>
+                      <td class='right $purchaseClass'>₹ ${String.format("%.2f", summary.pendingPurchaseAmount)}</td>
+                      <td class='right $netBalanceClass'><strong>₹ ${String.format("%.2f", summary.netBalance)}</strong></td>
+                    </tr>
+                """.trimIndent())
+            }
+
+            append("""
+                    </tbody>
+                  </table>
+                </body>
+                </html>
+            """.trimIndent())
+        }
+
+        // Generate PDF filename
+        val fileName = "customer_ledger_${System.currentTimeMillis()}.pdf"
+        val file = java.io.File(System.getProperty("user.home"), "Downloads/$fileName")
+
+        // Write to PDF using OpenHTMLToPDF
+        java.io.FileOutputStream(file).use { os ->
+            val builder = com.openhtmltopdf.pdfboxout.PdfRendererBuilder()
+            builder.withHtmlContent(html, null)
+            builder.toStream(os)
+            builder.run()
+        }
+
+        println("Customer ledger report saved to: ${file.absolutePath}")
+
+        // Open the PDF file
+        try {
+            if (java.awt.Desktop.isDesktopSupported()) {
+                java.awt.Desktop.getDesktop().open(file)
+            }
+        } catch (e: Exception) {
+            println("Could not open PDF file automatically: ${e.message}")
+        }
+
+    } catch (e: Exception) {
+        println("Error printing customer ledger: ${e.message}")
+        e.printStackTrace()
     }
 }

@@ -53,6 +53,8 @@ fun MainScreen(
     productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel,
     expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,
     saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel,
+    noteViewModel: com.humblecoders.plantmanagement.viewmodels.NoteViewModel,
+    companyViewModel: com.humblecoders.plantmanagement.viewmodels.CompanyViewModel,
     storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
@@ -107,6 +109,8 @@ fun MainScreen(
                         MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { }
                         MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel) { }
                         MenuItem.LEDGER -> LedgerScreen(entityViewModel, saleViewModel, purchaseViewModel, cashTransactionViewModel)
+                        MenuItem.NOTES -> NotesScreen(noteViewModel, user?.role)
+                        MenuItem.COMPANY_INFO -> CompanyInfoScreen(companyViewModel, user?.role)
                         MenuItem.PROFILE -> ProfileContent(authViewModel)
                         else -> PlaceholderContent(selectedMenuItem.name)
                     }

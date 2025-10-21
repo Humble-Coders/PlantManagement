@@ -8,7 +8,10 @@ import androidx.lifecycle.viewModelScope
 import com.humblecoders.plantmanagement.data.CashTransaction
 import com.humblecoders.plantmanagement.data.CashTransactionType
 import com.humblecoders.plantmanagement.data.Entity
+import com.humblecoders.plantmanagement.data.DifferenceTransactionType
 import com.humblecoders.plantmanagement.repositories.CashTransactionRepository
+import com.humblecoders.plantmanagement.repositories.CashOutRepository
+import com.humblecoders.plantmanagement.repositories.CashInRepository
 import kotlinx.coroutines.launch
 
 data class CashTransactionState(
@@ -20,11 +23,91 @@ data class CashTransactionState(
 )
 
 class CashTransactionViewModel(
-    private val cashTransactionRepository: CashTransactionRepository
+    private val cashTransactionRepository: CashTransactionRepository,
+    private val cashOutRepository: CashOutRepository,
+    private val cashInRepository: CashInRepository
 ) : ViewModel() {
 
     var cashTransactionState by mutableStateOf(CashTransactionState())
         private set
+
+    init {
+        // Listen to all cash transactions from entity screen
+        cashTransactionRepository.listenToCashTransactions { transactions ->
+            val currentCashOuts = cashTransactionState.transactions.filter { 
+                it.note.contains("Cash Out from Purchase Module") || it.note.contains("Difference Cash")
+            }
+            val entityTransactions = transactions.filter { 
+                !it.note.contains("Cash Out from Purchase Module") && !it.note.contains("Difference Cash")
+            }
+            cashTransactionState = cashTransactionState.copy(
+                transactions = entityTransactions + currentCashOuts
+            )
+        }
+        
+        // Listen to cash out transactions from purchase module
+        cashOutRepository.listenToCashOutHistory { cashOuts ->
+            val cashOutTransactions = cashOuts.flatMap { cashOut ->
+                cashOut.purchaseAllocations.map { allocation ->
+                    CashTransaction(
+                        id = "${cashOut.id}_${allocation.purchaseId}",
+                        userId = cashOut.userId,
+                        customerId = allocation.customerId,
+                        customerName = allocation.firmName,
+                        amount = allocation.allocatedAmount,
+                        transactionType = CashTransactionType.GIVE, // Cash out means we gave money to customer
+                        note = "Cash Out from Purchase Module: ${cashOut.notes}",
+                        previousBalance = 0.0, // Not tracked in cash out
+                        newBalance = 0.0, // Not tracked in cash out
+                        createdAt = cashOut.createdAt
+                    )
+                }
+            }
+            
+            val entityTransactions = cashTransactionState.transactions.filter { 
+                !it.note.contains("Cash Out from Purchase Module") && !it.note.contains("Difference Cash")
+            }
+            val currentDifferenceTransactions = cashTransactionState.transactions.filter { 
+                it.note.contains("Difference Cash")
+            }
+            cashTransactionState = cashTransactionState.copy(
+                transactions = entityTransactions + cashOutTransactions + currentDifferenceTransactions
+            )
+        }
+        
+        // Listen to difference cash transactions from sale module
+        cashInRepository.listenToCashInOutDifferenceHistory { differenceTransactions ->
+            val differenceCashTransactions = differenceTransactions.flatMap { diffTransaction ->
+                diffTransaction.saleAllocations.map { allocation ->
+                    CashTransaction(
+                        id = "${diffTransaction.id}_${allocation.saleId}",
+                        userId = diffTransaction.userId,
+                        customerId = allocation.customerId,
+                        customerName = allocation.firmName,
+                        amount = allocation.allocatedAmount,
+                        transactionType = when (diffTransaction.transactionType) {
+                            DifferenceTransactionType.CASH_IN -> CashTransactionType.RECEIVE
+                            DifferenceTransactionType.CASH_OUT -> CashTransactionType.GIVE
+                        },
+                        note = "Difference Cash ${diffTransaction.transactionType.name}: ${diffTransaction.notes}",
+                        previousBalance = 0.0, // Not tracked in difference transactions
+                        newBalance = 0.0, // Not tracked in difference transactions
+                        createdAt = diffTransaction.createdAt
+                    )
+                }
+            }
+            
+            val entityTransactions = cashTransactionState.transactions.filter { 
+                !it.note.contains("Cash Out from Purchase Module") && !it.note.contains("Difference Cash")
+            }
+            val currentCashOutTransactions = cashTransactionState.transactions.filter { 
+                it.note.contains("Cash Out from Purchase Module")
+            }
+            cashTransactionState = cashTransactionState.copy(
+                transactions = entityTransactions + currentCashOutTransactions + differenceCashTransactions
+            )
+        }
+    }
 
     fun processCashTransaction(
         customerId: String,

@@ -19,7 +19,9 @@ import com.humblecoders.plantmanagement.repositories.PurchaseRepository
 import com.humblecoders.plantmanagement.repositories.CashTransactionRepository
 import com.humblecoders.plantmanagement.repositories.CashOutRepository
 import com.humblecoders.plantmanagement.repositories.CashReportRepository
+import com.humblecoders.plantmanagement.repositories.CompanyRepository
 import com.humblecoders.plantmanagement.repositories.ExpenseRepository
+import com.humblecoders.plantmanagement.repositories.NoteRepository
 import com.humblecoders.plantmanagement.repositories.ProductionRepository
 import com.humblecoders.plantmanagement.repositories.SaleRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
@@ -28,7 +30,9 @@ import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 import com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
 import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
+import com.humblecoders.plantmanagement.viewmodels.CompanyViewModel
 import com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel
+import com.humblecoders.plantmanagement.viewmodels.NoteViewModel
 import com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
@@ -93,6 +97,8 @@ fun main() = application {
     var productionViewModel: ProductionViewModel? = null
     var expenseViewModel: ExpenseViewModel? = null
     var saleViewModel: SaleViewModel? = null
+    var noteViewModel: NoteViewModel? = null
+    var companyViewModel: CompanyViewModel? = null
 
 
 
@@ -122,13 +128,13 @@ fun main() = application {
             inventoryViewModel = InventoryViewModel(inventoryRepository)
             
             val cashTransactionRepository = CashTransactionRepository(firestoreNonNull, currentUser.uid, appId)
-            cashTransactionViewModel = CashTransactionViewModel(cashTransactionRepository)
+            val cashInRepository = CashInRepository(firestoreNonNull, currentUser.uid, appId)
+            cashTransactionViewModel = CashTransactionViewModel(cashTransactionRepository, cashOutRepository, cashInRepository)
             
             val cashReportRepository = CashReportRepository(firestoreNonNull)
             cashReportViewModel = CashReportViewModel(cashReportRepository, storageService)
 
             val saleRepository = SaleRepository(firestoreNonNull, currentUser.uid, appId)
-            val cashInRepository = CashInRepository(firestoreNonNull, currentUser.uid, appId)
             saleViewModel = SaleViewModel(saleRepository, cashInRepository, storageService)
             
             val expenseRepository= ExpenseRepository(
@@ -142,9 +148,15 @@ fun main() = application {
             
             val productionRepository = ProductionRepository(firestoreNonNull, currentUser.uid, appId)
             productionViewModel = ProductionViewModel(productionRepository, inventoryViewModel!!)
+            
+            val noteRepository = NoteRepository(firestoreNonNull, currentUser.uid, appId)
+            noteViewModel = NoteViewModel(noteRepository)
+            
+            val companyRepository = CompanyRepository(firestoreNonNull, currentUser.uid, appId)
+            companyViewModel = CompanyViewModel(companyRepository)
         }
 
-        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null) {
+        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null && noteViewModel != null && companyViewModel != null) {
             AppNavigation(
                 authViewModel = authViewModel,
                 entityViewModel = entityViewModel!!,
@@ -155,6 +167,8 @@ fun main() = application {
                 productionViewModel = productionViewModel!!,
                 expenseViewModel = expenseViewModel!!,
                 saleViewModel = saleViewModel!!,
+                noteViewModel = noteViewModel!!,
+                companyViewModel = companyViewModel!!,
                 storageService = storageService
             )
         } else {
@@ -174,6 +188,16 @@ fun main() = application {
                 ),
                 cashTransactionViewModel = CashTransactionViewModel(
                     CashTransactionRepository(
+                        firestoreNonNull,
+                        "",
+                        appId
+                    ),
+                    CashOutRepository(
+                        firestoreNonNull,
+                        "",
+                        appId
+                    ),
+                    CashInRepository(
                         firestoreNonNull,
                         "",
                         appId
@@ -200,6 +224,8 @@ fun main() = application {
                     CashInRepository(firestoreNonNull, "", appId),
                     storageService
                 ),
+                noteViewModel = NoteViewModel(NoteRepository(firestoreNonNull, "", appId)),
+                companyViewModel = CompanyViewModel(CompanyRepository(firestoreNonNull, "", appId)),
                 storageService = storageService
             )
         }
