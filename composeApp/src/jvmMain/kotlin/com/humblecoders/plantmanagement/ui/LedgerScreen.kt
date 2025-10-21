@@ -607,23 +607,23 @@ private fun printLedgerSummaries(
                     </div>
                     <div class='summary-item'>
                       <div class='summary-label'>Total Net Balance</div>
-                      <div class='summary-value ${if (totalNetBalance >= 0) "amount-positive" else "amount-negative"}'>₹ ${String.format("%.2f", totalNetBalance)}</div>
+                      <div class='summary-value ${if (totalNetBalance >= 0) "amount-positive" else "amount-negative"}'>Rs ${String.format("%.2f", totalNetBalance)}</div>
                     </div>
                     <div class='summary-item'>
                       <div class='summary-label'>Total Pending Portal</div>
-                      <div class='summary-value amount-warning'>₹ ${String.format("%.2f", totalPendingPortal)}</div>
+                      <div class='summary-value amount-warning'>Rs ${String.format("%.2f", totalPendingPortal)}</div>
                     </div>
                     <div class='summary-item'>
                       <div class='summary-label'>Total Pending Difference</div>
-                      <div class='summary-value amount-info'>₹ ${String.format("%.2f", totalPendingDifference)}</div>
+                      <div class='summary-value amount-info'>Rs ${String.format("%.2f", totalPendingDifference)}</div>
                     </div>
                     <div class='summary-item'>
                       <div class='summary-label'>Total Pending Purchase</div>
-                      <div class='summary-value amount-negative'>₹ ${String.format("%.2f", totalPendingPurchase)}</div>
+                      <div class='summary-value amount-negative'>Rs ${String.format("%.2f", totalPendingPurchase)}</div>
                     </div>
                     <div class='summary-item'>
                       <div class='summary-label'>Average Net Balance</div>
-                      <div class='summary-value ${if (totalNetBalance >= 0) "amount-positive" else "amount-negative"}'>₹ ${String.format("%.2f", if (totalCustomers > 0) totalNetBalance / totalCustomers else 0.0)}</div>
+                      <div class='summary-value ${if (totalNetBalance >= 0) "amount-positive" else "amount-negative"}'>Rs ${String.format("%.2f", if (totalCustomers > 0) totalNetBalance / totalCustomers else 0.0)}</div>
                     </div>
                   </div>
                   
@@ -657,10 +657,10 @@ private fun printLedgerSummaries(
                         ${summary.customer.contactPerson}<br/>
                         <span style='color: #666; font-size: 11px;'>${summary.customer.contactNo}</span>
                       </td>
-                      <td class='right $portalClass'>₹ ${String.format("%.2f", summary.pendingPortalAmount)}</td>
-                      <td class='right $differenceClass'>₹ ${String.format("%.2f", summary.pendingDifferenceAmount)}</td>
-                      <td class='right $purchaseClass'>₹ ${String.format("%.2f", summary.pendingPurchaseAmount)}</td>
-                      <td class='right $netBalanceClass'><strong>₹ ${String.format("%.2f", summary.netBalance)}</strong></td>
+                      <td class='right $portalClass'>Rs ${String.format("%.2f", summary.pendingPortalAmount)}</td>
+                      <td class='right $differenceClass'>Rs ${String.format("%.2f", summary.pendingDifferenceAmount)}</td>
+                      <td class='right $purchaseClass'>Rs ${String.format("%.2f", summary.pendingPurchaseAmount)}</td>
+                      <td class='right $netBalanceClass'><strong>Rs ${String.format("%.2f", summary.netBalance)}</strong></td>
                     </tr>
                 """.trimIndent())
             }

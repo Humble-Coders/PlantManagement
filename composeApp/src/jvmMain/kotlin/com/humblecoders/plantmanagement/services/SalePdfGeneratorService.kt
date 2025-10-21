@@ -250,12 +250,12 @@ class SalePdfGeneratorService {
         """ else ""}
         <div class="details-row">
             <div class="details-label">Original Rate per Kg:</div>
-            <div class="details-value">₹ ${formatAmount(sale.originalRatePerKg)}</div>
+            <div class="details-value">Rs ${formatAmount(sale.originalRatePerKg)}</div>
         </div>
         ${if (sale.discountType.name == "DISCOUNT_PREMIUM") """
         <div class="details-row">
             <div class="details-label">Discounted Rate per Kg:</div>
-            <div class="details-value">₹ ${formatAmount(sale.discountedRatePerKg)}</div>
+            <div class="details-value">Rs ${formatAmount(sale.discountedRatePerKg)}</div>
         </div>
         """ else ""}
         <div class="details-row">
@@ -276,7 +276,7 @@ class SalePdfGeneratorService {
         ${if (sale.fareAmount > 0) """
         <div class="details-row">
             <div class="details-label">Fare Amount:</div>
-            <div class="details-value">₹ ${formatAmount(sale.fareAmount)}</div>
+            <div class="details-value">Rs ${formatAmount(sale.fareAmount)}</div>
         </div>
         <div class="details-row">
             <div class="details-label">Fare Paid By:</div>
@@ -289,37 +289,37 @@ class SalePdfGeneratorService {
     <div class="calculations">
         <div class="calc-row">
             <div class="calc-label">Portal Amount:</div>
-            <div class="calc-value">₹ ${formatAmount(sale.portalAmount)}</div>
+            <div class="calc-value">Rs ${formatAmount(sale.portalAmount)}</div>
         </div>
         <div class="calc-row">
             <div class="calc-label">GST (5%):</div>
-            <div class="calc-value">₹ ${formatAmount(sale.gstAmount)}</div>
+            <div class="calc-value">Rs ${formatAmount(sale.gstAmount)}</div>
         </div>
         <div class="calc-row highlight">
             <div class="calc-label">Total Portal Amount:</div>
-            <div class="calc-value">₹ ${formatAmount(sale.totalPortalAmount)}</div>
+            <div class="calc-value">Rs ${formatAmount(sale.totalPortalAmount)}</div>
         </div>
         
         <div style="height: 20px;"></div>
         
         <div class="calc-row">
             <div class="calc-label">Revenue Amount:</div>
-            <div class="calc-value">₹ ${formatAmount(sale.revenueAmount)}</div>
+            <div class="calc-value">Rs ${formatAmount(sale.revenueAmount)}</div>
         </div>
         <div class="calc-row">
             <div class="calc-label">GST (5%):</div>
-            <div class="calc-value">₹ ${formatAmount(sale.gstAmount)}</div>
+            <div class="calc-value">Rs ${formatAmount(sale.gstAmount)}</div>
         </div>
         <div class="calc-row highlight">
             <div class="calc-label">Total Revenue Amount:</div>
-            <div class="calc-value">₹ ${formatAmount(sale.totalRevenueAmount)}</div>
+            <div class="calc-value">Rs ${formatAmount(sale.totalRevenueAmount)}</div>
         </div>
         
         <div style="height: 20px;"></div>
         
         <div class="calc-row ${if (sale.differenceAmount >= 0) "positive" else "negative"}">
             <div class="calc-label">Difference Amount:</div>
-            <div class="calc-value">${if (sale.differenceAmount >= 0) "+" else ""}₹ ${formatAmount(sale.differenceAmount)}</div>
+            <div class="calc-value">${if (sale.differenceAmount >= 0) "+" else ""}Rs ${formatAmount(sale.differenceAmount)}</div>
         </div>
         <div class="calc-row">
             <div class="calc-label" style="font-size: 9pt; font-weight: normal; font-style: italic;">
@@ -332,22 +332,22 @@ class SalePdfGeneratorService {
         
         <div class="calc-row">
             <div class="calc-label">Portal Amount Paid:</div>
-            <div class="calc-value">₹ ${formatAmount(sale.portalAmountPaid)}</div>
+            <div class="calc-value">Rs ${formatAmount(sale.portalAmountPaid)}</div>
         </div>
         <div class="calc-row">
             <div class="calc-label">Portal Pending:</div>
-            <div class="calc-value" style="color: #DC2626;">₹ ${formatAmount(sale.totalPortalAmount - sale.portalAmountPaid)}</div>
+            <div class="calc-value" style="color: #DC2626;">Rs ${formatAmount(sale.totalPortalAmount - sale.portalAmountPaid)}</div>
         </div>
         
         <div style="height: 10px;"></div>
         
         <div class="calc-row">
             <div class="calc-label">Difference Amount Paid:</div>
-            <div class="calc-value">₹ ${formatAmount(sale.differenceAmountPaid)}</div>
+            <div class="calc-value">Rs ${formatAmount(sale.differenceAmountPaid)}</div>
         </div>
         <div class="calc-row">
             <div class="calc-label">Difference Pending:</div>
-            <div class="calc-value" style="color: #DC2626;">₹ ${formatAmount(sale.differenceAmount - sale.differenceAmountPaid)}</div>
+            <div class="calc-value" style="color: #DC2626;">Rs ${formatAmount(sale.differenceAmount - sale.differenceAmountPaid)}</div>
         </div>
     </div>
     

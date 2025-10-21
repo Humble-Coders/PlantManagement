@@ -1268,9 +1268,9 @@ sealed class TransactionItem {
     
     val amount: String
         get() = when (this) {
-            is SaleItem -> "₹ ${String.format("%.2f", sale.totalRevenueAmount)}"
-            is PurchaseItem -> "₹ ${String.format("%.2f", purchase.grandTotal)}"
-            is CashTransactionItem -> "₹ ${String.format("%.2f", cashTransaction.amount)}"
+            is SaleItem -> "Rs ${String.format("%.2f", sale.totalRevenueAmount)}"
+            is PurchaseItem -> "Rs ${String.format("%.2f", purchase.grandTotal)}"
+            is CashTransactionItem -> "Rs ${String.format("%.2f", cashTransaction.amount)}"
         }
     
     val amountColor: Color
@@ -1527,22 +1527,22 @@ private fun printCustomerTransactions(
                         append("""
                             Bill: ${sale.billNumber}<br/>
                             Qty: ${String.format("%.2f", sale.quantityKg)} kg<br/>
-                            Rate: ₹${String.format("%.2f", sale.discountedRatePerKg)}/kg
+                            Rate: Rs${String.format("%.2f", sale.discountedRatePerKg)}/kg
                         """.trimIndent())
                     }
                     is TransactionItem.PurchaseItem -> {
                         val purchase = transaction.purchase
                         append("""
                             Items: ${purchase.items.size}<br/>
-                            GST: ₹${String.format("%.2f", purchase.gstAmount)}<br/>
-                            Total: ₹${String.format("%.2f", purchase.grandTotal)}
+                            GST: Rs${String.format("%.2f", purchase.gstAmount)}<br/>
+                            Total: Rs${String.format("%.2f", purchase.grandTotal)}
                         """.trimIndent())
                     }
                     is TransactionItem.CashTransactionItem -> {
                         val cash = transaction.cashTransaction
                         append("""
                             ${cash.note}<br/>
-                            Balance: ₹${String.format("%.2f", cash.newBalance)}
+                            Balance: Rs${String.format("%.2f", cash.newBalance)}
                         """.trimIndent())
                     }
                 }

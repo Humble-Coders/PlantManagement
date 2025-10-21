@@ -181,8 +181,8 @@ object PdfExportUtils {
             ColumnDefinition("Bill No.", "12%", { (it as Sale).billNumber }),
             ColumnDefinition("Portal Batch", "12%", { (it as Sale).portalBatchNumber }),
             ColumnDefinition("Quantity (Kg)", "10%", { String.format("%.2f", (it as Sale).quantityKg) }, true),
-            ColumnDefinition("Rate/Kg", "10%", { "₹ ${String.format("%.2f", (it as Sale).originalRatePerKg)}" }, true),
-            ColumnDefinition("Total Revenue", "12%", { "₹ ${String.format("%.2f", (it as Sale).totalRevenueAmount)}" }, true),
+            ColumnDefinition("Rate/Kg", "10%", { "Rs ${String.format("%.2f", (it as Sale).originalRatePerKg)}" }, true),
+            ColumnDefinition("Total Revenue", "12%", { "Rs ${String.format("%.2f", (it as Sale).totalRevenueAmount)}" }, true),
             ColumnDefinition("Status", "12%", { (it as Sale).saleStatus.name.replace("_", " ") })
         )
 
@@ -197,11 +197,11 @@ object PdfExportUtils {
                 val portalPendingAmount = String.format("%.2f", s.totalPortalAmount - s.portalAmountPaid)
                 val totalPortalWithGST = String.format("%.2f", s.totalPortalAmount)
                 val differenceAmount = String.format("%.2f", s.differenceAmount)
-                val differenceText = if (s.differenceAmount >= 0) "+₹$differenceAmount" else "-₹${kotlin.math.abs(s.differenceAmount)}"
+                val differenceText = if (s.differenceAmount >= 0) "+Rs$differenceAmount" else "-Rs${kotlin.math.abs(s.differenceAmount)}"
                 
                 buildString {
-                    append("Portal Paid: ₹$portalPaidAmount | Portal Pending: ₹$portalPendingAmount")
-                    append(" | Total Portal Amount (with GST): ₹$totalPortalWithGST")
+                    append("Portal Paid: Rs$portalPaidAmount | Portal Pending: Rs$portalPendingAmount")
+                    append(" | Total Portal Amount (with GST): Rs$totalPortalWithGST")
                     append(" | Difference: $differenceText")
                     if (s.notes.isNotBlank()) {
                         append(" | Notes: ${s.notes}")

@@ -250,26 +250,26 @@ class PdfGeneratorService {
         <table>
             <tr>
                 <td><strong>Subtotal:</strong></td>
-                <td class="text-right">₹ ${formatAmount(purchase.totalAmount)}</td>
+                <td class="text-right">Rs ${formatAmount(purchase.totalAmount)}</td>
             </tr>
             ${if (purchase.gstRate > 0) """
             <tr>
                 <td><strong>GST (${purchase.gstRate.toInt()}%):</strong></td>
-                <td class="text-right">₹ ${formatAmount(purchase.gstAmount)}</td>
+                <td class="text-right">Rs ${formatAmount(purchase.gstAmount)}</td>
             </tr>
             """ else ""}
             <tr class="grand-total">
                 <td><strong>Grand Total:</strong></td>
-                <td class="text-right">₹ ${formatAmount(purchase.grandTotal)}</td>
+                <td class="text-right">Rs ${formatAmount(purchase.grandTotal)}</td>
             </tr>
             <tr>
                 <td><strong>Amount Paid:</strong></td>
-                <td class="text-right">₹ ${formatAmount(purchase.amountPaid)}</td>
+                <td class="text-right">Rs ${formatAmount(purchase.amountPaid)}</td>
             </tr>
             ${if (purchase.grandTotal - purchase.amountPaid > 0) """
             <tr style="color: #DC2626;">
                 <td><strong>Balance Due:</strong></td>
-                <td class="text-right"><strong>₹ ${formatAmount(purchase.grandTotal - purchase.amountPaid)}</strong></td>
+                <td class="text-right"><strong>Rs ${formatAmount(purchase.grandTotal - purchase.amountPaid)}</strong></td>
             </tr>
             """ else ""}
         </table>
@@ -298,9 +298,9 @@ class PdfGeneratorService {
                 <td class="text-center">${index + 1}</td>
                 <td>${item.itemName}</td>
                 <td class="text-center">${formatAmount(item.quantity)} ${item.unit}</td>
-                <td class="text-right">₹ ${formatAmount(item.pricePerUnit)}</td>
+                <td class="text-right">Rs ${formatAmount(item.pricePerUnit)}</td>
                 <td class="text-right">-</td>
-                <td class="text-right">₹ ${formatAmount(item.totalPrice)}</td>
+                <td class="text-right">Rs ${formatAmount(item.totalPrice)}</td>
             </tr>
             """.trimIndent()
         }.joinToString("\n")
