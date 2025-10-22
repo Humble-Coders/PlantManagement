@@ -33,12 +33,8 @@ fun PendingBillHistoryScreen(
 ) {
     val pendingBillState = pendingBillViewModel.pendingBillState
     
-    // Filter bills with BILLED status
-    val billedBills = pendingBillState.pendingBills.filter { it.status == PendingBillStatus.BILLED }
-    
-    // Get filtered and sorted bills using ViewModel
+    // Get filtered and sorted bills using ViewModel (without enforcing status)
     val filteredBills = pendingBillViewModel.getFilteredAndSortedPendingBills()
-        .filter { it.status == PendingBillStatus.BILLED }
     
     // State for date pickers
     var showFromDatePicker by remember { mutableStateOf(false) }
@@ -86,7 +82,7 @@ fun PendingBillHistoryScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${filteredBills.size} billed bills",
+                    text = "${filteredBills.size} bills",
                     fontSize = 16.sp,
                     color = Color(0xFF9CA3AF)
                 )
@@ -245,7 +241,7 @@ fun PendingBillHistoryScreen(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "No Billed Bills Found",
+                                    text = "No Bills Found",
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF9CA3AF)
@@ -254,8 +250,7 @@ fun PendingBillHistoryScreen(
                                 Text(
                                     text = if (pendingBillState.searchQuery.isNotBlank() || 
                                         pendingBillState.filterDateFrom.isNotBlank() || 
-                                        pendingBillState.filterDateTo.isNotBlank() ||
-                                        pendingBillState.filterStatus != null) {
+                                        pendingBillState.filterDateTo.isNotBlank()) {
                                         "Try adjusting your filters"
                                     } else {
                                         "Bills will appear here once they are cleared"
@@ -416,155 +411,89 @@ fun AdvancedFiltersSection(
                 }
             }
                         
-                        // Search
-                        OutlinedTextField(
-                value = pendingBillState.searchQuery,
-                onValueChange = { pendingBillViewModel.updateSearchQuery(it) },
-                            label = { Text("Search bills...", color = Color(0xFF9CA3AF)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
-                                textColor = Color(0xFFF9FAFB),
-                                backgroundColor = Color(0xFF111827),
-                                focusedBorderColor = Color(0xFF10B981),
-                                unfocusedBorderColor = Color(0xFF374151),
-                                cursorColor = Color(0xFF10B981)
-                            ),
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Search,
-                                    contentDescription = "Search",
-                                    tint = Color(0xFF9CA3AF)
-                                )
-                            }
-                        )
-                        
-            // Date range - From Date
-            Text(
-                text = "From Date",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFFF9FAFB),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            
-                            OutlinedTextField(
-                value = pendingBillState.filterDateFrom,
-                onValueChange = { },
-                label = { Text("From Date", color = Color(0xFF9CA3AF)) },
-                readOnly = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onShowFromDatePicker() },
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    textColor = Color(0xFFF9FAFB),
-                    cursorColor = Color(0xFF10B981),
-                                    focusedBorderColor = Color(0xFF10B981),
-                                    unfocusedBorderColor = Color(0xFF374151),
-                    focusedLabelColor = Color(0xFF10B981),
-                    unfocusedLabelColor = Color(0xFF9CA3AF)
-                ),
-                leadingIcon = {
-                    IconButton(onClick = { onShowFromDatePicker() }) {
-                        Icon(
-                            Icons.Default.DateRange,
-                            contentDescription = "Select From Date",
-                            tint = Color(0xFF9CA3AF)
-                        )
-                    }
-                }
-            )
-            
-            // Date range - To Date
-            Text(
-                text = "To Date",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFFF9FAFB),
-                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            
-                            OutlinedTextField(
-                value = pendingBillState.filterDateTo,
-                onValueChange = { },
-                label = { Text("To Date", color = Color(0xFF9CA3AF)) },
-                readOnly = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onShowToDatePicker() },
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    textColor = Color(0xFFF9FAFB),
-                    cursorColor = Color(0xFF10B981),
-                                    focusedBorderColor = Color(0xFF10B981),
-                                    unfocusedBorderColor = Color(0xFF374151),
-                    focusedLabelColor = Color(0xFF10B981),
-                    unfocusedLabelColor = Color(0xFF9CA3AF)
-                ),
-                leadingIcon = {
-                    IconButton(onClick = { onShowToDatePicker() }) {
-                        Icon(
-                            Icons.Default.DateRange,
-                            contentDescription = "Select To Date",
-                            tint = Color(0xFF9CA3AF)
-                        )
-                    }
-                }
-            )
-            
-            // Status filter
-            var showStatusDropdown by remember { mutableStateOf(false) }
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = { showStatusDropdown = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        backgroundColor = Color(0xFF111827),
-                        contentColor = Color(0xFFF9FAFB)
-                    )
-                ) {
-                    Text(
-                        pendingBillState.filterStatus?.name?.replace("_", " ") ?: "All Statuses",
-                        color = Color(0xFFF9FAFB)
-                    )
-                    Icon(
-                        Icons.Default.ArrowDropDown,
-                        contentDescription = "Status Filter",
-                        tint = Color(0xFF9CA3AF)
-                    )
-                }
-                
-                DropdownMenu(
-                    expanded = showStatusDropdown,
-                    onDismissRequest = { showStatusDropdown = false },
-                    modifier = Modifier.background(Color(0xFF1F2937))
-                ) {
-                    DropdownMenuItem(
-                        onClick = {
-                            pendingBillViewModel.updateStatusFilter(null)
-                            showStatusDropdown = false
-                        }
-                    ) {
-                        Text("All Statuses", color = Color.White)
-                    }
-                    PendingBillStatus.values().forEach { status ->
-                        DropdownMenuItem(
-                            onClick = {
-                                pendingBillViewModel.updateStatusFilter(status)
-                                showStatusDropdown = false
-                            }
-                        ) {
-                            Text(status.name.replace("_", " "), color = Color.White)
-                        }
-                    }
-                }
-                        }
-                        
-                        // Sort options
+                        // Compact filters row: Search, From, To, Sort Field, Sort Direction
+                        var showSortFieldDropdown by remember { mutableStateOf(false) }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Sort field dropdown
-                            var showSortFieldDropdown by remember { mutableStateOf(false) }
+                            // Search
+                            OutlinedTextField(
+                                value = pendingBillState.searchQuery,
+                                onValueChange = { pendingBillViewModel.updateSearchQuery(it) },
+                                label = { Text("Search bills...", color = Color(0xFF9CA3AF)) },
+                                modifier = Modifier.weight(2f),
+                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                    textColor = Color(0xFFF9FAFB),
+                                    backgroundColor = Color(0xFF111827),
+                                    focusedBorderColor = Color(0xFF10B981),
+                                    unfocusedBorderColor = Color(0xFF374151),
+                                    cursorColor = Color(0xFF10B981)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = "Search",
+                                        tint = Color(0xFF9CA3AF)
+                                    )
+                                }
+                            )
+                            // From Date
+                            OutlinedTextField(
+                                value = pendingBillState.filterDateFrom,
+                                onValueChange = { },
+                                label = { Text("From", color = Color(0xFF9CA3AF)) },
+                                readOnly = true,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onShowFromDatePicker() },
+                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                    textColor = Color(0xFFF9FAFB),
+                                    cursorColor = Color(0xFF10B981),
+                                    focusedBorderColor = Color(0xFF10B981),
+                                    unfocusedBorderColor = Color(0xFF374151),
+                                    focusedLabelColor = Color(0xFF10B981),
+                                    unfocusedLabelColor = Color(0xFF9CA3AF)
+                                ),
+                                leadingIcon = {
+                                    IconButton(onClick = { onShowFromDatePicker() }) {
+                                        Icon(
+                                            Icons.Default.DateRange,
+                                            contentDescription = "Select From Date",
+                                            tint = Color(0xFF9CA3AF)
+                                        )
+                                    }
+                                }
+                            )
+                            // To Date
+                            OutlinedTextField(
+                                value = pendingBillState.filterDateTo,
+                                onValueChange = { },
+                                label = { Text("To", color = Color(0xFF9CA3AF)) },
+                                readOnly = true,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onShowToDatePicker() },
+                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                    textColor = Color(0xFFF9FAFB),
+                                    cursorColor = Color(0xFF10B981),
+                                    focusedBorderColor = Color(0xFF10B981),
+                                    unfocusedBorderColor = Color(0xFF374151),
+                                    focusedLabelColor = Color(0xFF10B981),
+                                    unfocusedLabelColor = Color(0xFF9CA3AF)
+                                ),
+                                leadingIcon = {
+                                    IconButton(onClick = { onShowToDatePicker() }) {
+                                        Icon(
+                                            Icons.Default.DateRange,
+                                            contentDescription = "Select To Date",
+                                            tint = Color(0xFF9CA3AF)
+                                        )
+                                    }
+                                }
+                            )
+                            // Sort Field
                             Box(modifier = Modifier.weight(1f)) {
                                 OutlinedButton(
                                     onClick = { showSortFieldDropdown = true },
@@ -574,65 +503,64 @@ fun AdvancedFiltersSection(
                                         contentColor = Color(0xFFF9FAFB)
                                     )
                                 ) {
-                        Text(
-                            pendingBillState.sortBy.name.replace("_", " "),
-                            color = Color(0xFFF9FAFB)
-                        )
+                                    Text(
+                                        pendingBillState.sortBy.name.replace("_", " "),
+                                        color = Color(0xFFF9FAFB)
+                                    )
                                     Icon(
                                         Icons.Default.ArrowDropDown,
                                         contentDescription = "Sort Field",
                                         tint = Color(0xFF9CA3AF)
                                     )
                                 }
-                                
-                    DropdownMenu(
-                        expanded = showSortFieldDropdown,
-                        onDismissRequest = { showSortFieldDropdown = false },
-                        modifier = Modifier.background(Color(0xFF1F2937))
-                    ) {
-                        PendingBillSortField.values().forEach { field ->
-                            DropdownMenuItem(
-                                onClick = {
-                                    pendingBillViewModel.updateSortField(field)
-                                    showSortFieldDropdown = false
+                                DropdownMenu(
+                                    expanded = showSortFieldDropdown,
+                                    onDismissRequest = { showSortFieldDropdown = false },
+                                    modifier = Modifier.background(Color(0xFF1F2937))
+                                ) {
+                                    PendingBillSortField.values().forEach { field ->
+                                        DropdownMenuItem(
+                                            onClick = {
+                                                pendingBillViewModel.updateSortField(field)
+                                                showSortFieldDropdown = false
+                                            }
+                                        ) {
+                                            Text(field.name.replace("_", " "), color = Color.White)
+                                        }
+                                    }
                                 }
-                            ) {
-                                Text(field.name.replace("_", " "), color = Color.White)
                             }
-                        }
-                    }
-                            }
-                            
-                            // Sort direction button
+                            // Sort Direction
                             Button(
                                 onClick = {
-                        val newDirection = if (pendingBillState.sortDirection == SortDirection.ASCENDING) {
+                                    val newDirection = if (pendingBillState.sortDirection == SortDirection.ASCENDING) {
                                         SortDirection.DESCENDING
                                     } else {
                                         SortDirection.ASCENDING
                                     }
-                        pendingBillViewModel.updateSortDirection(newDirection)
+                                    pendingBillViewModel.updateSortDirection(newDirection)
                                 },
                                 colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .height(56.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(
-                            if (pendingBillState.sortDirection == SortDirection.ASCENDING) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                        if (pendingBillState.sortDirection == SortDirection.ASCENDING) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                                         contentDescription = "Sort Direction",
                                         tint = Color.White,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
-                            if (pendingBillState.sortDirection == SortDirection.ASCENDING) "Ascending" else "Descending",
+                                        if (pendingBillState.sortDirection == SortDirection.ASCENDING) "Asc" else "Desc",
                                         color = Color.White
-                        )
-                    }
-                }
-            }
+                                    )
+                                }
+                            }
+                        }
         }
     }
 }
@@ -676,11 +604,16 @@ fun BilledBillCard(bill: PendingBill) {
                         fontSize = 14.sp,
                         color = Color(0xFF9CA3AF)
                     )
+                    val statusText = bill.status.name.replace("_", " ")
+                    val statusColor = when (bill.status) {
+                        PendingBillStatus.BILLED -> Color(0xFF10B981)
+                        PendingBillStatus.PENDING_BILLED -> Color(0xFFF59E0B)
+                    }
                     Text(
-                        text = "BILLED",
+                        text = statusText,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF10B981)
+                        color = statusColor
                     )
                 }
             }
