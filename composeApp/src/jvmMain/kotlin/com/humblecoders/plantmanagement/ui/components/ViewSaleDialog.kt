@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.humblecoders.plantmanagement.data.Sale
 import com.humblecoders.plantmanagement.data.SaleStatus
-import com.humblecoders.plantmanagement.data.BillingStatus
 import com.humblecoders.plantmanagement.data.DiscountType
 import com.humblecoders.plantmanagement.services.SalePdfGeneratorService
 import com.humblecoders.plantmanagement.ui.DetailRow
@@ -258,15 +257,6 @@ fun ViewSaleDialog(
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Divider(color = Color(0xFF374151))
                                 Spacer(modifier = Modifier.height(8.dp))
-
-                                DetailRow(
-                                    "Billing Status",
-                                    sale.billingStatus.name.replace("_", " "),
-                                    valueColor = when (sale.billingStatus) {
-                                        BillingStatus.BILLED -> Color(0xFF10B981)
-                                        BillingStatus.PENDING_BILLED -> Color(0xFFF59E0B)
-                                    }
-                                )
                             }
                         }
                     }

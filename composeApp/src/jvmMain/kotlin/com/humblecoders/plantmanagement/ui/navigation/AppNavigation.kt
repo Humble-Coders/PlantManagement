@@ -25,8 +25,8 @@ fun AppNavigation(
     expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,
     productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel,
     saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel,
+    pendingBillViewModel: com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel,
     noteViewModel: com.humblecoders.plantmanagement.viewmodels.NoteViewModel,
-    companyViewModel: com.humblecoders.plantmanagement.viewmodels.CompanyViewModel,
     storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     val authState = authViewModel.authState
@@ -66,8 +66,8 @@ fun AppNavigation(
                 expenseViewModel = expenseViewModel,
                 productionViewModel = productionViewModel,
                 saleViewModel = saleViewModel,
+                pendingBillViewModel = pendingBillViewModel,
                 noteViewModel = noteViewModel,
-                companyViewModel = companyViewModel,
                 storageService = storageService
             )
         }

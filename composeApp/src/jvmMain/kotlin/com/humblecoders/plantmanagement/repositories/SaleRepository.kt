@@ -41,7 +41,6 @@ class SaleRepository(
                 "saleStatus" to sale.saleStatus.name,
                 "differenceAmountPaid" to sale.differenceAmountPaid,
                 "differenceStatus" to sale.differenceStatus.name,
-                "billingStatus" to sale.billingStatus.name,
                 "clearedInventory" to sale.clearedInventory,
                 "truckNumber" to sale.truckNumber,
                 "fareAmount" to sale.fareAmount,
@@ -130,7 +129,6 @@ class SaleRepository(
                 "saleStatus" to sale.saleStatus.name,
                 "differenceAmountPaid" to sale.differenceAmountPaid,
                 "differenceStatus" to sale.differenceStatus.name,
-                "billingStatus" to sale.billingStatus.name,
                 "clearedInventory" to sale.clearedInventory,
                 "truckNumber" to sale.truckNumber,
                 "fareAmount" to sale.fareAmount,
@@ -406,9 +404,6 @@ class SaleRepository(
                                 differenceStatus = DifferenceStatus.valueOf(
                                     doc.getString("differenceStatus") ?: "PENDING"
                                 ),
-                                billingStatus = BillingStatus.valueOf(
-                                    doc.getString("billingStatus") ?: "PENDING_BILLED"
-                                ),
                                 clearedInventory = doc.getDouble("clearedInventory") ?: 0.0,
                                 truckNumber = doc.getString("truckNumber") ?: "",
                                 fareAmount = doc.getDouble("fareAmount") ?: 0.0,
@@ -459,11 +454,6 @@ class SaleRepository(
                 // Update cleared inventory
                 transaction.update(saleRef, "clearedInventory", newClearedInventory)
 
-                // If cleared inventory equals total quantity, mark as billed
-                if (newClearedInventory >= totalQuantity) {
-                    transaction.update(saleRef, "billingStatus", BillingStatus.BILLED.name)
-                }
-
                 null
             }.get(10, TimeUnit.SECONDS)
 
@@ -511,7 +501,6 @@ class SaleRepository(
                         saleStatus = SaleStatus.valueOf(doc.getString("saleStatus") ?: "PENDING"),
                         differenceAmountPaid = doc.getDouble("differenceAmountPaid") ?: 0.0,
                         differenceStatus = DifferenceStatus.valueOf(doc.getString("differenceStatus") ?: "PENDING"),
-                        billingStatus = BillingStatus.valueOf(doc.getString("billingStatus") ?: "PENDING_BILLED"),
                         clearedInventory = doc.getDouble("clearedInventory") ?: 0.0,
                         truckNumber = doc.getString("truckNumber") ?: "",
                         fareAmount = doc.getDouble("fareAmount") ?: 0.0,

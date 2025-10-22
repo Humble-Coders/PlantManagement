@@ -227,8 +227,6 @@ class SalePdfGeneratorService {
         <div class="bill-info-right">
             <p><span class="info-label">Sale Status:</span></p>
             <p><span class="status-badge ${getSaleStatusClass(sale.saleStatus.name)}">${sale.saleStatus.name.replace("_", " ")}</span></p>
-            <p style="margin-top: 10px;"><span class="info-label">Billing Status:</span></p>
-            <p><span class="status-badge ${getBillingStatusClass(sale.billingStatus.name)}">${sale.billingStatus.name.replace("_", " ")}</span></p>
         </div>
     </div>
     
@@ -389,11 +387,4 @@ class SalePdfGeneratorService {
         }
     }
 
-    private fun getBillingStatusClass(status: String): String {
-        return when (status) {
-            "BILLED" -> "status-paid"
-            "PENDING_BILLED" -> "status-pending"
-            else -> "status-pending"
-        }
-    }
 }

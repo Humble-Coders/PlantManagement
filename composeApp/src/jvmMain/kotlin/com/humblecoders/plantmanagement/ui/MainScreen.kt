@@ -36,7 +36,7 @@ enum class MenuItem {
     CASH_REPORT,
     EXPENSES,
     LEDGER,
-    COMPANY_INFO,
+    REMINDERS,
     NOTES,
     REPORTS,
     PROFILE
@@ -53,8 +53,8 @@ fun MainScreen(
     productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel,
     expenseViewModel: com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel,
     saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel,
+    pendingBillViewModel: com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel,
     noteViewModel: com.humblecoders.plantmanagement.viewmodels.NoteViewModel,
-    companyViewModel: com.humblecoders.plantmanagement.viewmodels.CompanyViewModel,
     storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
@@ -105,12 +105,12 @@ fun MainScreen(
                         )
                         MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
                         MenuItem.SALE -> SaleScreen(saleViewModel, entityViewModel, inventoryViewModel, storageService, user?.role)
-                        MenuItem.PENDING_BILLS -> PendingBillsScreen(saleViewModel, user?.role)
+                        MenuItem.PENDING_BILLS -> PendingBillsScreen(pendingBillViewModel, entityViewModel, inventoryViewModel, saleViewModel, storageService, user?.role)
                         MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { }
                         MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel) { }
                         MenuItem.LEDGER -> LedgerScreen(entityViewModel, saleViewModel, purchaseViewModel, cashTransactionViewModel)
+                        MenuItem.REMINDERS -> RemindersScreen(saleViewModel, entityViewModel, inventoryViewModel, storageService, user?.role)
                         MenuItem.NOTES -> NotesScreen(noteViewModel, user?.role)
-                        MenuItem.COMPANY_INFO -> CompanyInfoScreen(companyViewModel, user?.role)
                         MenuItem.PROFILE -> ProfileContent(authViewModel)
                         else -> PlaceholderContent(selectedMenuItem.name)
                     }
@@ -137,7 +137,7 @@ fun SidebarMenu(
         MenuItemData(MenuItem.CUSTOMERS, "Customers", Icons.Default.Person),
         MenuItemData(MenuItem.CASH_REPORT, "Cash Report", Icons.Default.AccountBalance),
         MenuItemData(MenuItem.LEDGER, "Ledger", Icons.Default.Menu),
-        MenuItemData(MenuItem.COMPANY_INFO, "Company Info", Icons.Default.Info),
+        MenuItemData(MenuItem.REMINDERS, "Reminders", Icons.Default.Notifications),
         MenuItemData(MenuItem.NOTES, "Notes", Icons.Default.Create),
         MenuItemData(MenuItem.REPORTS, "Reports", Icons.Default.ThumbUp),
     )

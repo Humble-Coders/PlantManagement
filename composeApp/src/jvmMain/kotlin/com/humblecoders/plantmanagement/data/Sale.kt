@@ -30,7 +30,6 @@ data class Sale(
     val saleStatus: SaleStatus = SaleStatus.PENDING,
     val differenceAmountPaid: Double = 0.0,
     val differenceStatus: DifferenceStatus = DifferenceStatus.PENDING,
-    val billingStatus: BillingStatus = BillingStatus.PENDING_BILLED,
     val clearedInventory: Double = 0.0,
     val truckNumber: String = "",
     val fareAmount: Double = 0.0,
@@ -59,11 +58,6 @@ enum class DifferenceStatus {
     PENDING,
     PARTIALLY_PAID,
     PAID
-}
-
-enum class BillingStatus {
-    BILLED,
-    PENDING_BILLED
 }
 
 enum class FarePaidBy {

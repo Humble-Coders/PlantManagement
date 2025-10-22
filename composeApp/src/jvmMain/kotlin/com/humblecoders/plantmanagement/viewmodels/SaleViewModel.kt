@@ -25,7 +25,6 @@ data class SaleState(
     val sortDirection: SortDirection = SortDirection.DESCENDING,
     val filterDateFrom: String = "",
     val filterDateTo: String = "",
-    val filterBillingStatus: BillingStatus? = null,
     val filterSaleStatus: SaleStatus? = null,
     val cashInRevenueHistory: List<CashInRevenue> = emptyList(),
     val cashInOutDifferenceHistory: List<CashInOutDifference> = emptyList(),
@@ -36,8 +35,7 @@ enum class SaleSortField {
     DATE,
     ENTITY,
     BILL_NUMBER,
-    STATUS,
-    BILLING_STATUS
+    STATUS
 }
 
 //enum class SortDirection {
@@ -309,13 +307,6 @@ class SaleViewModel(
     }
 
     /**
-     * Update billing status filter
-     */
-    fun updateBillingStatusFilter(status: BillingStatus?) {
-        saleState = saleState.copy(filterBillingStatus = status)
-    }
-
-    /**
      * Update sale status filter
      */
     fun updateSaleStatusFilter(status: SaleStatus?) {
@@ -365,15 +356,11 @@ class SaleViewModel(
                 true
             }
 
-            val billingStatusMatch = saleState.filterBillingStatus?.let { filter ->
-                sale.billingStatus == filter
-            } ?: true
-
             val saleStatusMatch = saleState.filterSaleStatus?.let { filter ->
                 sale.saleStatus == filter
             } ?: true
 
-            textMatch && dateMatch && billingStatusMatch && saleStatusMatch
+            textMatch && dateMatch && saleStatusMatch
         }
 
         val sorted = when (saleState.sortBy) {
@@ -403,13 +390,6 @@ class SaleViewModel(
                     filtered.sortedBy { it.saleStatus.name }
                 } else {
                     filtered.sortedByDescending { it.saleStatus.name }
-                }
-            }
-            SaleSortField.BILLING_STATUS -> {
-                if (saleState.sortDirection == SortDirection.ASCENDING) {
-                    filtered.sortedBy { it.billingStatus.name }
-                } else {
-                    filtered.sortedByDescending { it.billingStatus.name }
                 }
             }
         }

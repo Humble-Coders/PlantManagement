@@ -36,32 +36,68 @@ fun AddSaleDialog(
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
     storageService: FirebaseStorageService,
     onDismiss: () -> Unit,
-    onSave: (Sale) -> Unit
+    onSave: (Sale) -> Unit,
+    preFilledSale: Sale? = null, // Optional pre-filled sale data
+    isClearingBill: Boolean = false // Flag to indicate if this is for clearing a bill
 ) {
-    var selectedEntityId by remember { mutableStateOf("") }
-    var saleDate by remember { mutableStateOf(LocalDate.now()) }
-    var billNumber by remember { mutableStateOf("") }
-    var portalBatchNumber by remember { mutableStateOf("") }
+    var selectedEntityId by remember { mutableStateOf(preFilledSale?.customerId ?: "") }
+    var saleDate by remember {
+        mutableStateOf(
+            preFilledSale?.saleDate?.let { LocalDate.parse(it) } ?: LocalDate.now()
+        )
+    }
+    var billNumber by remember { mutableStateOf(preFilledSale?.billNumber ?: "") }
+    var portalBatchNumber by remember { mutableStateOf(preFilledSale?.portalBatchNumber ?: "") }
 
-    var quantityKg by remember { mutableStateOf("") }
-    var numberOfBags by remember { mutableStateOf("") }
-    var deductFromInventory by remember { mutableStateOf(true) }
+    var quantityKg by remember {
+        mutableStateOf(
+            if (isClearingBill) preFilledSale?.quantityKg?.toString() ?: "" else ""
+        )
+    }
+    var numberOfBags by remember {
+        mutableStateOf(
+            if (isClearingBill) preFilledSale?.numberOfBags?.toString() ?: "" else ""
+        )
+    }
+    var deductFromInventory by remember {
+        mutableStateOf(
+            preFilledSale?.deductFromInventory ?: true
+        )
+    }
 
-    var originalRatePerKg by remember { mutableStateOf("") }
+    var originalRatePerKg by remember {
+        mutableStateOf(
+            preFilledSale?.originalRatePerKg?.toString() ?: ""
+        )
+    }
 
-    var discountType by remember { mutableStateOf(DiscountType.NONE) }
-    var discountedRatePerKg by remember { mutableStateOf("") }
-    var extraQuantityKg by remember { mutableStateOf("") }
+    var discountType by remember {
+        mutableStateOf(
+            preFilledSale?.discountType ?: DiscountType.NONE
+        )
+    }
+    var discountedRatePerKg by remember {
+        mutableStateOf(
+            preFilledSale?.discountedRatePerKg?.toString() ?: ""
+        )
+    }
+    var extraQuantityKg by remember {
+        mutableStateOf(
+            preFilledSale?.extraQuantityKg?.toString() ?: ""
+        )
+    }
 
-    var portalAmountPaid by remember { mutableStateOf("") }
+    var portalAmountPaid by remember {
+        mutableStateOf(
+            preFilledSale?.portalAmountPaid?.toString() ?: ""
+        )
+    }
 
-    var billingStatus by remember { mutableStateOf(BillingStatus.PENDING_BILLED) }
+    var truckNumber by remember { mutableStateOf(preFilledSale?.truckNumber ?: "") }
+    var fareAmount by remember { mutableStateOf(preFilledSale?.fareAmount?.toString() ?: "") }
+    var farePaidBy by remember { mutableStateOf(preFilledSale?.farePaidBy ?: FarePaidBy.COMPANY) }
 
-    var truckNumber by remember { mutableStateOf("") }
-    var fareAmount by remember { mutableStateOf("") }
-    var farePaidBy by remember { mutableStateOf(FarePaidBy.COMPANY) }
-
-    var notes by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf(preFilledSale?.notes ?: "") }
 
     // Image upload state
     var selectedImages by remember { mutableStateOf<List<File>>(emptyList()) }
@@ -84,7 +120,9 @@ fun AddSaleDialog(
     }
 
     LaunchedEffect(numberOfBags) {
-        if (numberOfBags.isNotBlank() && numberOfBags != (quantityKg.toDoubleOrNull()?.div(25.0) ?: 0.0).toInt().toString()) {
+        if (numberOfBags.isNotBlank() && numberOfBags != (quantityKg.toDoubleOrNull()?.div(25.0)
+                ?: 0.0).toInt().toString()
+        ) {
             val bags = numberOfBags.toIntOrNull()
             if (bags != null) {
                 quantityKg = (bags * 25.0).toString()
@@ -94,9 +132,9 @@ fun AddSaleDialog(
 
     // Get fortified rice inventory
     LaunchedEffect(Unit) {
-        val fortifiedRiceItem = inventoryViewModel.inventoryState.items.find { 
-            it.name.lowercase().contains("fortified rice") || 
-            it.name.lowercase().contains("frk")
+        val fortifiedRiceItem = inventoryViewModel.inventoryState.items.find {
+            it.name.lowercase().contains("fortified rice") ||
+                    it.name.lowercase().contains("frk")
         }
         availableInventory = fortifiedRiceItem?.quantity ?: 0.0
     }
@@ -104,26 +142,37 @@ fun AddSaleDialog(
     // Inventory validation
     LaunchedEffect(quantityKg, extraQuantityKg, deductFromInventory, discountType) {
         inventoryError = ""
-        
+
         if (deductFromInventory) {
             val qty = quantityKg.toDoubleOrNull() ?: 0.0
             val extraQty = extraQuantityKg.toDoubleOrNull() ?: 0.0
-            
+
             // Calculate total quantity needed
             val totalQuantityNeeded = if (discountType == DiscountType.INDIRECT_DISCOUNT) {
                 qty + extraQty // For indirect discount, we need both main quantity + extra quantity
             } else {
                 qty // For other discount types, only main quantity
             }
-            
+
             if (totalQuantityNeeded > availableInventory) {
-                inventoryError = "Insufficient inventory! Available: ${String.format("%.2f", availableInventory)} kg, Required: ${String.format("%.2f", totalQuantityNeeded)} kg"
+                inventoryError = "Insufficient inventory! Available: ${
+                    String.format(
+                        "%.2f",
+                        availableInventory
+                    )
+                } kg, Required: ${String.format("%.2f", totalQuantityNeeded)} kg"
             }
         }
     }
 
     // Calculate amounts
-    val calculation = remember(quantityKg, originalRatePerKg, discountType, discountedRatePerKg, extraQuantityKg) {
+    val calculation = remember(
+        quantityKg,
+        originalRatePerKg,
+        discountType,
+        discountedRatePerKg,
+        extraQuantityKg
+    ) {
         val qty = quantityKg.toDoubleOrNull() ?: 0.0
         val rate = originalRatePerKg.toDoubleOrNull() ?: 0.0
         val discRate = discountedRatePerKg.toDoubleOrNull() ?: 0.0
@@ -158,7 +207,11 @@ fun AddSaleDialog(
                         fontSize = 20.sp
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF9CA3AF))
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF)
+                        )
                     }
                 }
 
@@ -179,13 +232,16 @@ fun AddSaleDialog(
                             ) {
                                 Text(
                                     text = if (selectedEntityId.isBlank()) "Select Customer"
-                                    else customers.find { it.id == selectedEntityId }?.firmName ?: "Select Customer",
+                                    else customers.find { it.id == selectedEntityId }?.firmName
+                                        ?: "Select Customer",
                                     modifier = Modifier.weight(1f)
                                 )
                                 Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                             }
 
-                            DropdownMenu(expanded = entityExpanded, onDismissRequest = { entityExpanded = false }) {
+                            DropdownMenu(
+                                expanded = entityExpanded,
+                                onDismissRequest = { entityExpanded = false }) {
                                 customers.forEach { entity ->
                                     DropdownMenuItem(onClick = {
                                         selectedEntityId = entity.id
@@ -247,16 +303,27 @@ fun AddSaleDialog(
 
                     // Quantity Section
                     item {
-                        Text("Quantity", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                        Text(
+                            "Quantity",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF10B981)
+                        )
                     }
 
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedTextField(
                                 value = quantityKg,
-                                onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) quantityKg = it },
+                                onValueChange = {
+                                    if (!isClearingBill && (it.isEmpty() || it.matches(
+                                            Regex("[0-9]*\\.?[0-9]*")
+                                        ))
+                                    ) quantityKg = it
+                                },
                                 label = { Text("Quantity (Kg)", color = Color(0xFF9CA3AF)) },
                                 modifier = Modifier.weight(1f).focusRequester(focusRequesters[2]),
+                                readOnly = isClearingBill,
                                 colors = TextFieldDefaults.outlinedTextFieldColors(
                                     textColor = Color(0xFFF9FAFB),
                                     backgroundColor = Color(0xFF111827),
@@ -268,9 +335,15 @@ fun AddSaleDialog(
                             )
                             OutlinedTextField(
                                 value = numberOfBags,
-                                onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*"))) numberOfBags = it },
+                                onValueChange = {
+                                    if (!isClearingBill && (it.isEmpty() || it.matches(
+                                            Regex("[0-9]*")
+                                        ))
+                                    ) numberOfBags = it
+                                },
                                 label = { Text("Number of Bags", color = Color(0xFF9CA3AF)) },
                                 modifier = Modifier.weight(1f).focusRequester(focusRequesters[3]),
+                                readOnly = isClearingBill,
                                 colors = TextFieldDefaults.outlinedTextFieldColors(
                                     textColor = Color(0xFFF9FAFB),
                                     backgroundColor = Color(0xFF111827),
@@ -283,17 +356,24 @@ fun AddSaleDialog(
                         }
                     }
 
-                    item {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Checkbox(
-                                checked = deductFromInventory,
-                                onCheckedChange = { deductFromInventory = it },
-                                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF10B981))
-                            )
-                            Text("Deduct from Inventory", color = Color(0xFFF9FAFB), fontSize = 14.sp)
+                    // Deduct from Inventory checkbox (only show when not clearing a bill)
+                    if (!isClearingBill) {
+                        item {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Checkbox(
+                                    checked = deductFromInventory,
+                                    onCheckedChange = { deductFromInventory = it },
+                                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF10B981))
+                                )
+                                Text(
+                                    "Deduct from Inventory",
+                                    color = Color(0xFFF9FAFB),
+                                    fontSize = 14.sp
+                                )
+                            }
                         }
                     }
 
@@ -302,13 +382,21 @@ fun AddSaleDialog(
 
                     // Pricing Section
                     item {
-                        Text("Pricing & Discount", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                        Text(
+                            "Pricing & Discount",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF10B981)
+                        )
                     }
 
                     item {
                         OutlinedTextField(
                             value = originalRatePerKg,
-                            onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) originalRatePerKg = it },
+                            onValueChange = {
+                                if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) originalRatePerKg =
+                                    it
+                            },
                             label = { Text("Original Rate per Kg (₹)", color = Color(0xFF9CA3AF)) },
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[4]),
                             colors = TextFieldDefaults.outlinedTextFieldColors(
@@ -324,7 +412,12 @@ fun AddSaleDialog(
 
                     // Discount Type Selection
                     item {
-                        Text("Discount Type", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            "Discount Type",
+                            color = Color(0xFFF9FAFB),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
                     }
 
                     item {
@@ -332,7 +425,9 @@ fun AddSaleDialog(
                             OutlinedButton(
                                 onClick = { discountType = DiscountType.NONE },
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (discountType == DiscountType.NONE) Color(0xFF10B981) else Color.Black
+                                    contentColor = if (discountType == DiscountType.NONE) Color(
+                                        0xFF10B981
+                                    ) else Color.Black
                                 ),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -341,7 +436,9 @@ fun AddSaleDialog(
                             OutlinedButton(
                                 onClick = { discountType = DiscountType.DISCOUNT_PREMIUM },
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (discountType == DiscountType.DISCOUNT_PREMIUM) Color(0xFF10B981) else Color.Black
+                                    contentColor = if (discountType == DiscountType.DISCOUNT_PREMIUM) Color(
+                                        0xFF10B981
+                                    ) else Color.Black
                                 ),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -350,7 +447,9 @@ fun AddSaleDialog(
                             OutlinedButton(
                                 onClick = { discountType = DiscountType.INDIRECT_DISCOUNT },
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (discountType == DiscountType.INDIRECT_DISCOUNT) Color(0xFF10B981) else Color.Black
+                                    contentColor = if (discountType == DiscountType.INDIRECT_DISCOUNT) Color(
+                                        0xFF10B981
+                                    ) else Color.Black
                                 ),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -364,9 +463,18 @@ fun AddSaleDialog(
                         item {
                             OutlinedTextField(
                                 value = discountedRatePerKg,
-                                onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) discountedRatePerKg = it },
-                                label = { Text("Discounted/Premium Rate per Kg (₹)", color = Color(0xFF9CA3AF)) },
-                                modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[5]),
+                                onValueChange = {
+                                    if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) discountedRatePerKg =
+                                        it
+                                },
+                                label = {
+                                    Text(
+                                        "Discounted/Premium Rate per Kg (₹)",
+                                        color = Color(0xFF9CA3AF)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                                    .focusRequester(focusRequesters[5]),
                                 colors = TextFieldDefaults.outlinedTextFieldColors(
                                     textColor = Color(0xFFF9FAFB),
                                     backgroundColor = Color(0xFF111827),
@@ -384,9 +492,18 @@ fun AddSaleDialog(
                         item {
                             OutlinedTextField(
                                 value = extraQuantityKg,
-                                onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) extraQuantityKg = it },
-                                label = { Text("Extra Quantity to Send (Kg)", color = Color(0xFF9CA3AF)) },
-                                modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[6]),
+                                onValueChange = {
+                                    if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) extraQuantityKg =
+                                        it
+                                },
+                                label = {
+                                    Text(
+                                        "Extra Quantity to Send (Kg)",
+                                        color = Color(0xFF9CA3AF)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                                    .focusRequester(focusRequesters[6]),
                                 colors = TextFieldDefaults.outlinedTextFieldColors(
                                     textColor = Color(0xFFF9FAFB),
                                     backgroundColor = Color(0xFF111827),
@@ -406,48 +523,135 @@ fun AddSaleDialog(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Calculations", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                Text(
+                                    "Calculations",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF10B981)
+                                )
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Portal Amount:", color = Color(0xFF9CA3AF), fontSize = 13.sp)
-                                    Text("₹${String.format("%.2f", calculation.portalAmount)}", color = Color(0xFFF9FAFB), fontSize = 13.sp)
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("GST (5%):", color = Color(0xFF9CA3AF), fontSize = 13.sp)
-                                    Text("₹${String.format("%.2f", calculation.gstAmount)}", color = Color(0xFFF9FAFB), fontSize = 13.sp)
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Total Portal Amount:", color = Color(0xFFF9FAFB), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                    Text("₹${String.format("%.2f", calculation.totalPortalAmount)}", color = Color(0xFF10B981), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                }
-
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Divider(color = Color(0xFF374151))
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Revenue Amount:", color = Color(0xFF9CA3AF), fontSize = 13.sp)
-                                    Text("₹${String.format("%.2f", calculation.revenueAmount)}", color = Color(0xFFF9FAFB), fontSize = 13.sp)
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("GST (5%):", color = Color(0xFF9CA3AF), fontSize = 13.sp)
-                                    Text("₹${String.format("%.2f", calculation.gstAmount)}", color = Color(0xFFF9FAFB), fontSize = 13.sp)
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Total Revenue Amount:", color = Color(0xFFF9FAFB), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                    Text("₹${String.format("%.2f", calculation.totalRevenueAmount)}", color = Color(0xFF10B981), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                }
-
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Divider(color = Color(0xFF374151))
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Difference Amount:", color = Color(0xFFF9FAFB), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
                                     Text(
-                                        text = "${if (calculation.differenceAmount >= 0) "+" else ""}₹${String.format("%.2f", calculation.differenceAmount)}",
-                                        color = if (calculation.differenceAmount >= 0) Color(0xFF10B981) else Color(0xFFEF4444),
+                                        "Portal Amount:",
+                                        color = Color(0xFF9CA3AF),
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        "₹${String.format("%.2f", calculation.portalAmount)}",
+                                        color = Color(0xFFF9FAFB),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("GST (5%):", color = Color(0xFF9CA3AF), fontSize = 13.sp)
+                                    Text(
+                                        "₹${String.format("%.2f", calculation.gstAmount)}",
+                                        color = Color(0xFFF9FAFB),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Total Portal Amount:",
+                                        color = Color(0xFFF9FAFB),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "₹${String.format("%.2f", calculation.totalPortalAmount)}",
+                                        color = Color(0xFF10B981),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Divider(color = Color(0xFF374151))
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Revenue Amount:",
+                                        color = Color(0xFF9CA3AF),
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        "₹${String.format("%.2f", calculation.revenueAmount)}",
+                                        color = Color(0xFFF9FAFB),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("GST (5%):", color = Color(0xFF9CA3AF), fontSize = 13.sp)
+                                    Text(
+                                        "₹${String.format("%.2f", calculation.gstAmount)}",
+                                        color = Color(0xFFF9FAFB),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Total Revenue Amount:",
+                                        color = Color(0xFFF9FAFB),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "₹${
+                                            String.format(
+                                                "%.2f",
+                                                calculation.totalRevenueAmount
+                                            )
+                                        }",
+                                        color = Color(0xFF10B981),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Divider(color = Color(0xFF374151))
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Difference Amount:",
+                                        color = Color(0xFFF9FAFB),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "${if (calculation.differenceAmount >= 0) "+" else ""}₹${
+                                            String.format(
+                                                "%.2f",
+                                                calculation.differenceAmount
+                                            )
+                                        }",
+                                        color = if (calculation.differenceAmount >= 0) Color(
+                                            0xFF10B981
+                                        ) else Color(0xFFEF4444),
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -467,13 +671,21 @@ fun AddSaleDialog(
 
                     // Payment Section
                     item {
-                        Text("Payment Details", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                        Text(
+                            "Payment Details",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF10B981)
+                        )
                     }
 
                     item {
                         OutlinedTextField(
                             value = portalAmountPaid,
-                            onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) portalAmountPaid = it },
+                            onValueChange = {
+                                if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) portalAmountPaid =
+                                    it
+                            },
                             label = { Text("Portal Amount Paid (₹)", color = Color(0xFF9CA3AF)) },
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequesters[7]),
                             colors = TextFieldDefaults.outlinedTextFieldColors(
@@ -488,40 +700,17 @@ fun AddSaleDialog(
                     }
 
 
-                    // Billing Status
-                    item {
-                        Text("Billing Status", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    }
-
-                    item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = { billingStatus = BillingStatus.BILLED },
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (billingStatus == BillingStatus.BILLED) Color(0xFF10B981) else Color.Black
-                                ),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Billed")
-                            }
-                            OutlinedButton(
-                                onClick = { billingStatus = BillingStatus.PENDING_BILLED },
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (billingStatus == BillingStatus.PENDING_BILLED) Color(0xFF10B981) else Color.Black
-                                ),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Pending Billed")
-                            }
-                        }
-                    }
-
                     // Divider
                     item { Divider(color = Color(0xFF374151)) }
 
                     // Transport Section
                     item {
-                        Text("Transport Details (Optional)", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                        Text(
+                            "Transport Details (Optional)",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF10B981)
+                        )
                     }
 
                     item {
@@ -544,7 +733,10 @@ fun AddSaleDialog(
                     item {
                         OutlinedTextField(
                             value = fareAmount,
-                            onValueChange = { if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) fareAmount = it },
+                            onValueChange = {
+                                if (it.isEmpty() || it.matches(Regex("[0-9]*\\.?[0-9]*"))) fareAmount =
+                                    it
+                            },
                             label = { Text("Fare Amount (₹)", color = Color(0xFF9CA3AF)) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = TextFieldDefaults.outlinedTextFieldColors(
@@ -559,7 +751,12 @@ fun AddSaleDialog(
                     }
 
                     item {
-                        Text("Fare Paid By", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            "Fare Paid By",
+                            color = Color(0xFFF9FAFB),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
                     }
 
                     item {
@@ -567,7 +764,9 @@ fun AddSaleDialog(
                             OutlinedButton(
                                 onClick = { farePaidBy = FarePaidBy.COMPANY },
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (farePaidBy == FarePaidBy.COMPANY) Color(0xFF10B981) else Color.Black
+                                    contentColor = if (farePaidBy == FarePaidBy.COMPANY) Color(
+                                        0xFF10B981
+                                    ) else Color.Black
                                 ),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -576,7 +775,9 @@ fun AddSaleDialog(
                             OutlinedButton(
                                 onClick = { farePaidBy = FarePaidBy.CUSTOMER },
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (farePaidBy == FarePaidBy.CUSTOMER) Color(0xFF10B981) else Color.Black
+                                    contentColor = if (farePaidBy == FarePaidBy.CUSTOMER) Color(
+                                        0xFF10B981
+                                    ) else Color.Black
                                 ),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -604,7 +805,8 @@ fun AddSaleDialog(
                             value = notes,
                             onValueChange = { notes = it },
                             label = { Text("Notes (Optional)", color = Color(0xFF9CA3AF)) },
-                            modifier = Modifier.fillMaxWidth().height(80.dp).focusRequester(focusRequesters[9]),
+                            modifier = Modifier.fillMaxWidth().height(80.dp)
+                                .focusRequester(focusRequesters[9]),
                             colors = TextFieldDefaults.outlinedTextFieldColors(
                                 textColor = Color(0xFFF9FAFB),
                                 backgroundColor = Color(0xFF111827),
@@ -668,26 +870,28 @@ fun AddSaleDialog(
                             if (inventoryError.isNotEmpty()) {
                                 return@Button // Don't save if there's an inventory error
                             }
-                            
+
                             // Start image upload process
                             if (selectedImages.isNotEmpty()) {
                                 isUploadingImages = true
-                                
+
                                 // Upload images in background - we'll handle this with a coroutine scope
                                 GlobalScope.launch {
                                     val imageUrls = mutableListOf<String>()
-                                    
+
                                     for (imageFile in selectedImages) {
-                                        val uploadResult = storageService.uploadImage(imageFile, "sales")
+                                        val uploadResult =
+                                            storageService.uploadImage(imageFile, "sales")
                                         if (uploadResult.isSuccess) {
                                             imageUrls.add(uploadResult.getOrNull() ?: "")
                                         }
                                     }
-                                    
+
                                     isUploadingImages = false
-                                    
+
                                     // Create and save sale with uploaded image URLs
-                                    val selectedEntity = customers.find { it.id == selectedEntityId }
+                                    val selectedEntity =
+                                        customers.find { it.id == selectedEntityId }
                                     val qty = quantityKg.toDoubleOrNull() ?: 0.0
                                     val bags = (qty / 25.0).toInt()
                                     val portalPaid = portalAmountPaid.toDoubleOrNull() ?: 0.0
@@ -699,11 +903,12 @@ fun AddSaleDialog(
                                     }
 
                                     // Difference status: PAID if zero difference, PENDING otherwise
-                                    val differenceStatus = if (kotlin.math.abs(calculation.differenceAmount) == 0.0) {
-                                        DifferenceStatus.PAID
-                                    } else {
-                                        DifferenceStatus.PENDING
-                                    }
+                                    val differenceStatus =
+                                        if (kotlin.math.abs(calculation.differenceAmount) == 0.0) {
+                                            DifferenceStatus.PAID
+                                        } else {
+                                            DifferenceStatus.PENDING
+                                        }
 
                                     onSave(
                                         Sale(
@@ -715,13 +920,16 @@ fun AddSaleDialog(
                                             quantityKg = qty,
                                             numberOfBags = bags,
                                             deductFromInventory = deductFromInventory,
-                                            originalRatePerKg = originalRatePerKg.toDoubleOrNull() ?: 0.0,
+                                            originalRatePerKg = originalRatePerKg.toDoubleOrNull()
+                                                ?: 0.0,
                                             portalAmount = calculation.portalAmount,
                                             gstAmount = calculation.gstAmount,
                                             totalPortalAmount = calculation.totalPortalAmount,
                                             discountType = discountType,
-                                            discountedRatePerKg = discountedRatePerKg.toDoubleOrNull() ?: 0.0,
-                                            extraQuantityKg = extraQuantityKg.toDoubleOrNull() ?: 0.0,
+                                            discountedRatePerKg = discountedRatePerKg.toDoubleOrNull()
+                                                ?: 0.0,
+                                            extraQuantityKg = extraQuantityKg.toDoubleOrNull()
+                                                ?: 0.0,
                                             revenueAmount = calculation.revenueAmount,
                                             totalRevenueAmount = calculation.totalRevenueAmount,
                                             differenceAmount = calculation.differenceAmount,
@@ -729,8 +937,7 @@ fun AddSaleDialog(
                                             saleStatus = saleStatus,
                                             differenceAmountPaid = 0.0, // Always 0 when adding a sale
                                             differenceStatus = differenceStatus,
-                                            billingStatus = billingStatus,
-                                            clearedInventory = if (billingStatus == BillingStatus.PENDING_BILLED) 0.0 else qty,
+                                            clearedInventory = qty,
                                             truckNumber = truckNumber,
                                             fareAmount = fareAmount.toDoubleOrNull() ?: 0.0,
                                             farePaidBy = farePaidBy,
@@ -753,11 +960,12 @@ fun AddSaleDialog(
                                 }
 
                                 // Difference status: PAID if zero difference, PENDING otherwise
-                                val differenceStatus = if (kotlin.math.abs(calculation.differenceAmount) == 0.0) {
-                                    DifferenceStatus.PAID
-                                } else {
-                                    DifferenceStatus.PENDING
-                                }
+                                val differenceStatus =
+                                    if (kotlin.math.abs(calculation.differenceAmount) == 0.0) {
+                                        DifferenceStatus.PAID
+                                    } else {
+                                        DifferenceStatus.PENDING
+                                    }
 
                                 onSave(
                                     Sale(
@@ -769,12 +977,14 @@ fun AddSaleDialog(
                                         quantityKg = qty,
                                         numberOfBags = bags,
                                         deductFromInventory = deductFromInventory,
-                                        originalRatePerKg = originalRatePerKg.toDoubleOrNull() ?: 0.0,
+                                        originalRatePerKg = originalRatePerKg.toDoubleOrNull()
+                                            ?: 0.0,
                                         portalAmount = calculation.portalAmount,
                                         gstAmount = calculation.gstAmount,
                                         totalPortalAmount = calculation.totalPortalAmount,
                                         discountType = discountType,
-                                        discountedRatePerKg = discountedRatePerKg.toDoubleOrNull() ?: 0.0,
+                                        discountedRatePerKg = discountedRatePerKg.toDoubleOrNull()
+                                            ?: 0.0,
                                         extraQuantityKg = extraQuantityKg.toDoubleOrNull() ?: 0.0,
                                         revenueAmount = calculation.revenueAmount,
                                         totalRevenueAmount = calculation.totalRevenueAmount,
@@ -783,8 +993,7 @@ fun AddSaleDialog(
                                         saleStatus = saleStatus,
                                         differenceAmountPaid = 0.0, // Always 0 when adding a sale
                                         differenceStatus = differenceStatus,
-                                        billingStatus = billingStatus,
-                                        clearedInventory = if (billingStatus == BillingStatus.PENDING_BILLED) 0.0 else qty,
+                                        clearedInventory = qty,
                                         truckNumber = truckNumber,
                                         fareAmount = fareAmount.toDoubleOrNull() ?: 0.0,
                                         farePaidBy = farePaidBy,
@@ -798,7 +1007,9 @@ fun AddSaleDialog(
                                 portalBatchNumber.isNotBlank() && quantityKg.isNotBlank() &&
                                 originalRatePerKg.isNotBlank() && inventoryError.isEmpty() && !isUploadingImages,
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (inventoryError.isNotEmpty() || isUploadingImages) Color(0xFF6B7280) else Color(0xFF10B981),
+                            backgroundColor = if (inventoryError.isNotEmpty() || isUploadingImages) Color(
+                                0xFF6B7280
+                            ) else Color(0xFF10B981),
                             disabledBackgroundColor = Color(0xFF9CA3AF)
                         )
                     ) {

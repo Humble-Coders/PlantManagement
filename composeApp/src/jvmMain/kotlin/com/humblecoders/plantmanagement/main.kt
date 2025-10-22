@@ -19,23 +19,23 @@ import com.humblecoders.plantmanagement.repositories.PurchaseRepository
 import com.humblecoders.plantmanagement.repositories.CashTransactionRepository
 import com.humblecoders.plantmanagement.repositories.CashOutRepository
 import com.humblecoders.plantmanagement.repositories.CashReportRepository
-import com.humblecoders.plantmanagement.repositories.CompanyRepository
 import com.humblecoders.plantmanagement.repositories.ExpenseRepository
 import com.humblecoders.plantmanagement.repositories.NoteRepository
 import com.humblecoders.plantmanagement.repositories.ProductionRepository
 import com.humblecoders.plantmanagement.repositories.SaleRepository
+import com.humblecoders.plantmanagement.repositories.PendingBillRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 import com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
 import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
-import com.humblecoders.plantmanagement.viewmodels.CompanyViewModel
 import com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel
 import com.humblecoders.plantmanagement.viewmodels.NoteViewModel
 import com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
+import com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel
 import java.io.ByteArrayInputStream
 
 object FirebaseCredentialsHolder {
@@ -97,8 +97,8 @@ fun main() = application {
     var productionViewModel: ProductionViewModel? = null
     var expenseViewModel: ExpenseViewModel? = null
     var saleViewModel: SaleViewModel? = null
+    var pendingBillViewModel: PendingBillViewModel? = null
     var noteViewModel: NoteViewModel? = null
-    var companyViewModel: CompanyViewModel? = null
 
 
 
@@ -137,6 +137,9 @@ fun main() = application {
             val saleRepository = SaleRepository(firestoreNonNull, currentUser.uid, appId)
             saleViewModel = SaleViewModel(saleRepository, cashInRepository, storageService)
             
+            val pendingBillRepository = PendingBillRepository(firestoreNonNull, currentUser.uid, appId)
+            pendingBillViewModel = PendingBillViewModel(pendingBillRepository)
+            
             val expenseRepository= ExpenseRepository(
                 firestoreNonNull,
                 storageService = storageService
@@ -151,12 +154,9 @@ fun main() = application {
             
             val noteRepository = NoteRepository(firestoreNonNull, currentUser.uid, appId)
             noteViewModel = NoteViewModel(noteRepository)
-            
-            val companyRepository = CompanyRepository(firestoreNonNull, currentUser.uid, appId)
-            companyViewModel = CompanyViewModel(companyRepository)
         }
 
-        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null && noteViewModel != null && companyViewModel != null) {
+        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null && noteViewModel != null && pendingBillViewModel != null) {
             AppNavigation(
                 authViewModel = authViewModel,
                 entityViewModel = entityViewModel!!,
@@ -167,8 +167,8 @@ fun main() = application {
                 productionViewModel = productionViewModel!!,
                 expenseViewModel = expenseViewModel!!,
                 saleViewModel = saleViewModel!!,
+                pendingBillViewModel = pendingBillViewModel!!,
                 noteViewModel = noteViewModel!!,
-                companyViewModel = companyViewModel!!,
                 storageService = storageService
             )
         } else {
@@ -224,8 +224,8 @@ fun main() = application {
                     CashInRepository(firestoreNonNull, "", appId),
                     storageService
                 ),
+                pendingBillViewModel = PendingBillViewModel(PendingBillRepository(firestoreNonNull, "", appId)),
                 noteViewModel = NoteViewModel(NoteRepository(firestoreNonNull, "", appId)),
-                companyViewModel = CompanyViewModel(CompanyRepository(firestoreNonNull, "", appId)),
                 storageService = storageService
             )
         }

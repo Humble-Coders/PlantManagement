@@ -476,7 +476,6 @@ fun SaleTable(
             Text("Difference Pending", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Sale Status", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Diff Status", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Billing Status", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Deduct Inventory", color = Color(0xFF9CA3AF), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Actions", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
@@ -544,17 +543,6 @@ fun SaleTable(
                         com.humblecoders.plantmanagement.data.DifferenceStatus.PAID -> Color(0xFF10B981)
                         com.humblecoders.plantmanagement.data.DifferenceStatus.PENDING -> Color(0xFFF59E0B)
                         com.humblecoders.plantmanagement.data.DifferenceStatus.PARTIALLY_PAID -> Color(0xFF3B82F6)
-                    },
-                    modifier = Modifier.width(100.dp),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = sale.billingStatus.name.replace("_", " "),
-                    color = when (sale.billingStatus) {
-                        BillingStatus.BILLED -> Color(0xFF10B981)
-                        BillingStatus.PENDING_BILLED -> Color(0xFFF59E0B)
                     },
                     modifier = Modifier.width(100.dp),
                     fontSize = 11.sp,

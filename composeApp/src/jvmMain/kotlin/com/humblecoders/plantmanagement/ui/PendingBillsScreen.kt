@@ -18,23 +18,41 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.humblecoders.plantmanagement.data.*
-import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
+import com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel
+import com.humblecoders.plantmanagement.ui.components.AddPendingBillDialog
+import com.humblecoders.plantmanagement.ui.components.AddSaleDialog
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun PendingBillsScreen(
-    saleViewModel: SaleViewModel,
+    pendingBillViewModel: PendingBillViewModel,
+    entityViewModel: com.humblecoders.plantmanagement.viewmodels.EntityViewModel,
+    inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
+    saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel,
+    storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService,
     userRole: UserRole? = null
 ) {
-    val saleState = saleViewModel.saleState
-    var showClearPartialDialog by remember { mutableStateOf(false) }
-    var saleToClearPartial by remember { mutableStateOf<Sale?>(null) }
-    var showClearAllDialog by remember { mutableStateOf(false) }
-    var saleToClearAll by remember { mutableStateOf<Sale?>(null) }
+    val pendingBillState = pendingBillViewModel.pendingBillState
+    var showClearBillDialog by remember { mutableStateOf(false) }
+    var pendingBillToClear by remember { mutableStateOf<PendingBill?>(null) }
+    var showAddPendingBillDialog by remember { mutableStateOf(false) }
+    var showHistoryScreen by remember { mutableStateOf(false) }
     
-    // Filter sales with PENDING_BILLED status
-    val pendingBills = saleState.sales.filter { it.billingStatus == BillingStatus.PENDING_BILLED }
+    // Filter pending bills with PENDING_BILLED status
+    val pendingBills = pendingBillState.pendingBills.filter { it.status == PendingBillStatus.PENDING_BILLED }
+    
+    // Auto-close dialogs when operations complete
+    LaunchedEffect(pendingBillState.isAdding, pendingBillState.isUpdating) {
+        if (!pendingBillState.isAdding && !pendingBillState.isUpdating) {
+            // Check if we have a success message, which means operation completed successfully
+            if (pendingBillState.successMessage != null) {
+                showAddPendingBillDialog = false
+                showClearBillDialog = false
+                pendingBillToClear = null
+            }
+        }
+    }
     
     Column(
         modifier = Modifier
@@ -55,16 +73,150 @@ fun PendingBillsScreen(
                 color = Color(0xFFF9FAFB)
             )
             
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             Text(
                 text = "${pendingBills.size} pending bills",
                 fontSize = 16.sp,
                 color = Color(0xFF9CA3AF)
             )
+                
+                Button(
+                    onClick = { showAddPendingBillDialog = true },
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
+                    modifier = Modifier.height(40.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Add Pending Bill",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                Button(
+                    onClick = { showHistoryScreen = true },
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF6B7280)),
+                    modifier = Modifier.height(40.dp)
+                ) {
+                    Icon(Icons.Default.History, contentDescription = "History", tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "History",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+        
+        // Error message
+        if (pendingBillState.error != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = Color(0xFF7F1D1D),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Error,
+                        contentDescription = "Error",
+                        tint = Color(0xFFFCA5A5),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = pendingBillState.error,
+                        color = Color(0xFFFCA5A5),
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = { pendingBillViewModel.clearError() }
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = Color(0xFFFCA5A5),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+        
+        // Success message
+        if (pendingBillState.successMessage != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = Color(0xFF064E3B),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Success",
+                        tint = Color(0xFF6EE7B7),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = pendingBillState.successMessage,
+                        color = Color(0xFF6EE7B7),
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = { pendingBillViewModel.clearSuccessMessage() }
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = Color(0xFF6EE7B7),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
         }
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        if (pendingBills.isEmpty()) {
+        // Loading state
+        if (pendingBillState.isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF10B981),
+                        strokeWidth = 3.dp
+                    )
+                    Text(
+                        text = "Loading pending bills...",
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 16.sp
+                    )
+                }
+            }
+        } else if (pendingBills.isEmpty()) {
             // Empty state
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -90,7 +242,7 @@ fun PendingBillsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "All sales have been fully billed",
+                        text = "All bills have been cleared",
                         fontSize = 14.sp,
                         color = Color(0xFF6B7280)
                     )
@@ -101,16 +253,12 @@ fun PendingBillsScreen(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(pendingBills) { sale ->
+                items(pendingBills) { pendingBill ->
                     PendingBillCard(
-                        sale = sale,
-                        onClearPartialClick = {
-                            saleToClearPartial = sale
-                            showClearPartialDialog = true
-                        },
-                        onClearAllClick = {
-                            saleToClearAll = sale
-                            showClearAllDialog = true
+                        pendingBill = pendingBill,
+                        onClearBillClick = {
+                            pendingBillToClear = pendingBill
+                            showClearBillDialog = true
                         }
                     )
                 }
@@ -118,45 +266,57 @@ fun PendingBillsScreen(
         }
     }
     
-    // Clear Partial Dialog
-    if (showClearPartialDialog && saleToClearPartial != null) {
-        ClearPartialDialog(
-            sale = saleToClearPartial!!,
+    // Clear Bill Dialog
+    if (showClearBillDialog && pendingBillToClear != null) {
+        ClearBillDialog(
+            pendingBill = pendingBillToClear!!,
+            customers = entityViewModel.entityState.entities,
+            pendingBillViewModel = pendingBillViewModel,
+            saleViewModel = saleViewModel,
+            inventoryViewModel = inventoryViewModel,
+            storageService = storageService,
             onDismiss = {
-                showClearPartialDialog = false
-                saleToClearPartial = null
+                showClearBillDialog = false
+                pendingBillToClear = null
             },
-            onClearBill = { quantityToClear ->
-                saleViewModel.clearBill(saleToClearPartial!!.id, quantityToClear)
-                showClearPartialDialog = false
-                saleToClearPartial = null
+            onClearBill = { clearedQuantity ->
+                pendingBillViewModel.clearBill(pendingBillToClear!!.id, clearedQuantity)
+                // Dialog will be closed automatically when operation completes
+                // We'll handle this in the success/error state handling
             }
         )
     }
     
-    // Clear All Dialog
-    if (showClearAllDialog && saleToClearAll != null) {
-        ClearAllDialog(
-            sale = saleToClearAll!!,
-            onDismiss = {
-                showClearAllDialog = false
-                saleToClearAll = null
-            },
-            onClearAll = {
-                val remainingQuantity = saleToClearAll!!.quantityKg - saleToClearAll!!.clearedInventory
-                saleViewModel.clearBill(saleToClearAll!!.id, remainingQuantity)
-                showClearAllDialog = false
-                saleToClearAll = null
+    // Add Pending Bill Dialog
+    if (showAddPendingBillDialog) {
+        AddPendingBillDialog(
+            customers = entityViewModel.entityState.entities,
+            pendingBillViewModel = pendingBillViewModel,
+            inventoryViewModel = inventoryViewModel,
+            storageService = storageService,
+            onDismiss = { showAddPendingBillDialog = false },
+            onSave = { pendingBill ->
+                pendingBillViewModel.addPendingBill(pendingBill)
+                // Dialog will be closed automatically when operation completes
+                // We'll handle this in the success/error state handling
             }
+        )
+    }
+    
+    // History Screen
+    if (showHistoryScreen) {
+        PendingBillHistoryScreen(
+            pendingBillViewModel = pendingBillViewModel,
+            userRole = userRole,
+            onBack = { showHistoryScreen = false }
         )
     }
 }
 
 @Composable
 fun PendingBillCard(
-    sale: Sale,
-    onClearPartialClick: () -> Unit,
-    onClearAllClick: () -> Unit
+    pendingBill: PendingBill,
+    onClearBillClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -175,20 +335,20 @@ fun PendingBillCard(
             ) {
                 Column {
                     Text(
-                        text = sale.firmName,
+                        text = pendingBill.firmName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFF9FAFB)
                     )
                     Text(
-                        text = "Bill #${sale.billNumber}",
+                        text = "Bill #${pendingBill.billNumber}",
                         fontSize = 14.sp,
                         color = Color(0xFF9CA3AF)
                     )
                 }
                 
                 Text(
-                    text = sale.saleDate,
+                    text = pendingBill.billDate,
                     fontSize = 14.sp,
                     color = Color(0xFF9CA3AF)
                 )
@@ -210,7 +370,7 @@ fun PendingBillCard(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "${String.format("%.2f", sale.clearedInventory)} / ${String.format("%.2f", sale.quantityKg)} kg",
+                        text = "${String.format("%.2f", pendingBill.clearedQuantity)} / ${String.format("%.2f", pendingBill.quantityKg)} kg",
                         fontSize = 16.sp,
                         color = Color(0xFFF9FAFB),
                         fontWeight = FontWeight.SemiBold
@@ -226,14 +386,14 @@ fun PendingBillCard(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "₹ ${String.format("%.2f", sale.totalPortalAmount)}",
+                        text = "₹ ${String.format("%.2f", pendingBill.totalPortalAmount)}",
                         fontSize = 16.sp,
                         color = Color(0xFF10B981),
                         fontWeight = FontWeight.SemiBold
                     )
                 }
                 
-                // Billing status
+                // Status
                 Column {
                     Text(
                         text = "Status",
@@ -264,25 +424,12 @@ fun PendingBillCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = { onClearPartialClick() },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3B82F6)),
-                    modifier = Modifier.weight(1f).height(36.dp)
-                ) {
-                    Text(
-                        text = "Clear Partial",
-                        color = Color(0xFFF9FAFB),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                
-                Button(
-                    onClick = { onClearAllClick() },
+                    onClick = onClearBillClick,
                     colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
                     modifier = Modifier.weight(1f).height(36.dp)
                 ) {
                     Text(
-                        text = "Clear All",
+                        text = "Clear Bill",
                         color = Color(0xFFF9FAFB),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
@@ -294,15 +441,25 @@ fun PendingBillCard(
 }
 
 @Composable
-fun ClearPartialDialog(
-    sale: Sale,
+fun ClearBillDialog(
+    pendingBill: PendingBill,
+    customers: List<Entity>,
+    pendingBillViewModel: PendingBillViewModel,
+    saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel,
+    inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
+    storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService,
     onDismiss: () -> Unit,
     onClearBill: (Double) -> Unit
 ) {
-    var quantityToClear by remember { mutableStateOf("") }
+    var clearedQuantity by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf("") }
+    var showAddSaleDialog by remember { mutableStateOf(false) }
     
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = { 
+        if (!pendingBillViewModel.pendingBillState.isUpdating) {
+            onDismiss()
+        }
+    }) {
         Card(
             modifier = Modifier
                 .width(400.dp),
@@ -320,7 +477,7 @@ fun ClearPartialDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Clear Partial Bill",
+                        "Clear Bill",
                         color = Color(0xFFF9FAFB),
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
@@ -332,7 +489,7 @@ fun ClearPartialDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Sale details
+                // Pending bill details
                 Card(
                     backgroundColor = Color(0xFF111827),
                     shape = RoundedCornerShape(8.dp)
@@ -341,13 +498,13 @@ fun ClearPartialDialog(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text(
-                            text = sale.firmName,
+                            text = pendingBill.firmName,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFF9FAFB)
                         )
                         Text(
-                            text = "Bill #${sale.billNumber}",
+                            text = "Bill #${pendingBill.billNumber}",
                             fontSize = 14.sp,
                             color = Color(0xFF9CA3AF)
                         )
@@ -357,18 +514,18 @@ fun ClearPartialDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Total Quantity: ${String.format("%.2f", sale.quantityKg)} kg",
+                                text = "Total Quantity: ${String.format("%.2f", pendingBill.quantityKg)} kg",
                                 fontSize = 14.sp,
                                 color = Color(0xFF9CA3AF)
                             )
                             Text(
-                                text = "Cleared: ${String.format("%.2f", sale.clearedInventory)} kg",
+                                text = "Cleared: ${String.format("%.2f", pendingBill.clearedQuantity)} kg",
                                 fontSize = 14.sp,
                                 color = Color(0xFF10B981)
                             )
                         }
                         Text(
-                            text = "Remaining: ${String.format("%.2f", sale.quantityKg - sale.clearedInventory)} kg",
+                            text = "Remaining: ${String.format("%.2f", pendingBill.quantityKg - pendingBill.clearedQuantity)} kg",
                             fontSize = 14.sp,
                             color = Color(0xFFF59E0B)
                         )
@@ -379,21 +536,43 @@ fun ClearPartialDialog(
                 
                 // Quantity input
                 OutlinedTextField(
-                    value = quantityToClear,
+                    value = clearedQuantity,
                     onValueChange = { 
-                        quantityToClear = it
+                        clearedQuantity = it
                         errorMessage = ""
+                        
+                        // Real-time validation
+                        val quantity = it.toDoubleOrNull()
+                        val remainingQuantity = pendingBill.quantityKg - pendingBill.clearedQuantity
+                        
+                        when {
+                            it.isNotEmpty() && (quantity == null || quantity <= 0) -> {
+                                errorMessage = "Please enter a valid quantity"
+                            }
+                            it.isNotEmpty() && quantity != null && quantity > remainingQuantity -> {
+                                errorMessage = "Cannot clear more than remaining quantity (${String.format("%.2f", remainingQuantity)} kg)"
+                            }
+                        }
                     },
                     label = { Text("Quantity to Clear (kg)", color = Color(0xFF9CA3AF)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = TextFieldDefaults.outlinedTextFieldColors(
                         textColor = Color(0xFFF9FAFB),
                         backgroundColor = Color(0xFF111827),
-                        focusedBorderColor = Color(0xFF10B981),
-                        unfocusedBorderColor = Color(0xFF374151),
+                        focusedBorderColor = if (errorMessage.isNotEmpty()) Color(0xFFEF4444) else Color(0xFF10B981),
+                        unfocusedBorderColor = if (errorMessage.isNotEmpty()) Color(0xFFEF4444) else Color(0xFF374151),
                         cursorColor = Color(0xFF10B981)
                     ),
-                    singleLine = true
+                    singleLine = true,
+                    isError = errorMessage.isNotEmpty()
+                )
+                
+                // Helpful hint showing remaining quantity
+                Text(
+                    text = "Remaining quantity: ${String.format("%.2f", pendingBill.quantityKg - pendingBill.clearedQuantity)} kg",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B7280),
+                    modifier = Modifier.padding(start = 4.dp)
                 )
                 
                 if (errorMessage.isNotEmpty()) {
@@ -420,8 +599,8 @@ fun ClearPartialDialog(
                     
                     Button(
                         onClick = {
-                            val quantity = quantityToClear.toDoubleOrNull()
-                            val remainingQuantity = sale.quantityKg - sale.clearedInventory
+                            val quantity = clearedQuantity.toDoubleOrNull()
+                            val remainingQuantity = pendingBill.quantityKg - pendingBill.clearedQuantity
                             
                             when {
                                 quantity == null || quantity <= 0 -> {
@@ -431,149 +610,84 @@ fun ClearPartialDialog(
                                     errorMessage = "Cannot clear more than remaining quantity (${String.format("%.2f", remainingQuantity)} kg)"
                                 }
                                 else -> {
-                                    onClearBill(quantity)
+                                    showAddSaleDialog = true
                                 }
                             }
                         },
+                        enabled = !pendingBillViewModel.pendingBillState.isUpdating && 
+                                clearedQuantity.isNotBlank() && errorMessage.isEmpty(),
                         colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
                         modifier = Modifier.height(40.dp)
                     ) {
-                        Text("Clear Partial", color = Color(0xFFF9FAFB), fontWeight = FontWeight.Bold)
-                    }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (pendingBillViewModel.pendingBillState.isUpdating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color(0xFFF9FAFB),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                            Text(
+                                if (pendingBillViewModel.pendingBillState.isUpdating) "Clearing..." else "Clear Bill", 
+                                color = Color(0xFFF9FAFB), 
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                 }
             }
         }
     }
 }
 
-@Composable
-fun ClearAllDialog(
-    sale: Sale,
-    onDismiss: () -> Unit,
-    onClearAll: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .width(400.dp),
-            backgroundColor = Color(0xFF1F2937),
-            shape = RoundedCornerShape(16.dp),
-            elevation = 8.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Clear All Bill",
-                        color = Color(0xFFF9FAFB),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF9CA3AF))
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Sale details
-                Card(
-                    backgroundColor = Color(0xFF111827),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = sale.firmName,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFF9FAFB)
-                        )
-                        Text(
-                            text = "Bill #${sale.billNumber}",
-                            fontSize = 14.sp,
-                            color = Color(0xFF9CA3AF)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Total Quantity: ${String.format("%.2f", sale.quantityKg)} kg",
-                                fontSize = 14.sp,
-                                color = Color(0xFF9CA3AF)
-                            )
-                            Text(
-                                text = "Cleared: ${String.format("%.2f", sale.clearedInventory)} kg",
-                                fontSize = 14.sp,
-                                color = Color(0xFF10B981)
-                            )
-                        }
-                        Text(
-                            text = "Remaining: ${String.format("%.2f", sale.quantityKg - sale.clearedInventory)} kg",
-                            fontSize = 14.sp,
-                            color = Color(0xFFF59E0B)
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Warning message
-                Card(
-                    backgroundColor = Color(0xFF7F1D1D),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Warning,
-                            contentDescription = "Warning",
-                            tint = Color(0xFFFCA5A5),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "This will clear the entire remaining quantity (${String.format("%.2f", sale.quantityKg - sale.clearedInventory)} kg)",
-                            color = Color(0xFFFCA5A5),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = Color(0xFF9CA3AF))
-                    }
-                    
-                    Spacer(modifier = Modifier.width(12.dp))
-                    
-                    Button(
-                        onClick = onClearAll,
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
-                        modifier = Modifier.height(40.dp)
-                    ) {
-                        Text("Clear All", color = Color(0xFFF9FAFB), fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
+    // Add Sale Dialog with pre-filled values
+    if (showAddSaleDialog) {
+        val clearedQuantityValue = clearedQuantity.toDoubleOrNull() ?: 0.0
+        val preFilledSale = Sale(
+            customerId = pendingBill.customerId,
+            firmName = pendingBill.firmName,
+            saleDate = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
+            billNumber = pendingBill.billNumber,
+            portalBatchNumber = pendingBill.portalBatchNumber,
+            quantityKg = clearedQuantityValue,
+            numberOfBags = (clearedQuantityValue / 25.0).toInt(),
+            deductFromInventory = false, // Don't deduct inventory when clearing
+            originalRatePerKg = pendingBill.originalRatePerKg,
+            portalAmount = pendingBill.portalAmount * (clearedQuantityValue / pendingBill.quantityKg),
+            gstAmount = pendingBill.gstAmount * (clearedQuantityValue / pendingBill.quantityKg),
+            totalPortalAmount = pendingBill.totalPortalAmount * (clearedQuantityValue / pendingBill.quantityKg),
+            discountType = pendingBill.discountType,
+            discountedRatePerKg = pendingBill.discountedRatePerKg,
+            extraQuantityKg = pendingBill.extraQuantityKg * (clearedQuantityValue / pendingBill.quantityKg),
+            revenueAmount = pendingBill.revenueAmount * (clearedQuantityValue / pendingBill.quantityKg),
+            totalRevenueAmount = pendingBill.totalRevenueAmount * (clearedQuantityValue / pendingBill.quantityKg),
+            differenceAmount = pendingBill.differenceAmount * (clearedQuantityValue / pendingBill.quantityKg),
+            portalAmountPaid = pendingBill.portalAmountPaid * (clearedQuantityValue / pendingBill.quantityKg),
+            differenceAmountPaid = 0.0,
+            truckNumber = pendingBill.truckNumber,
+            fareAmount = pendingBill.fareAmount * (clearedQuantityValue / pendingBill.quantityKg),
+            farePaidBy = pendingBill.farePaidBy,
+            notes = pendingBill.notes,
+            imageUrls = emptyList(),
+            clearedInventory = clearedQuantityValue
+        )
+        
+        AddSaleDialog(
+            customers = customers,
+            saleViewModel = saleViewModel,
+            inventoryViewModel = inventoryViewModel,
+            storageService = storageService,
+            onDismiss = { showAddSaleDialog = false },
+            onSave = { sale ->
+                saleViewModel.addSale(sale)
+                onClearBill(clearedQuantityValue)
+                showAddSaleDialog = false
+                onDismiss()
+            },
+            preFilledSale = preFilledSale,
+            isClearingBill = true
+        )
     }
 }
