@@ -70,6 +70,9 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.humblecoders.plantmanagement"
             packageVersion = "1.0.0"
+            
+            // Include modules for Firebase Admin SDK and HTTP client compatibility
+            modules("java.sql", "java.desktop", "java.logging", "java.net.http")
         }
     }
 }
