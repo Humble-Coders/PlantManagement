@@ -83,16 +83,18 @@ class ExpensePdfService {
                         padding: 15px 30px;
                         border-radius: 8px;
                         text-align: center;
-                        color: white;
                         font-weight: bold;
-                        background-color: #EF4444;
+                        background-color: #f8f9fa;
+                        border: 1px solid #dee2e6;
                     }
                     .summary-label {
                         font-size: 12px;
                         margin-bottom: 5px;
+                        color: #6c757d;
                     }
                     .summary-value {
                         font-size: 18px;
+                        color: #EF4444;
                     }
                     .expenses-table {
                         width: 100%;

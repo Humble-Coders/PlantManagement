@@ -62,3 +62,16 @@ enum class PendingBillTransactionType {
     PARTIALLY_CLEARED,
     FULLY_CLEARED
 }
+
+/**
+ * Represents customer details when clearing a pending bill
+ */
+data class PendingBillClearanceRecord(
+    val id: String = "",
+    val pendingBillId: String = "",
+    val customerName: String = "",
+    val quantityCleared: Double = 0.0,
+    val clearanceDate: String = "",
+    val userId: String = "",
+    val createdAt: Timestamp? = null
+)

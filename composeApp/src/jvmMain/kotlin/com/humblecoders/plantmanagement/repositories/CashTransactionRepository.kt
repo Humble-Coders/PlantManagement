@@ -89,7 +89,6 @@ class CashTransactionRepository(
         return@withContext try {
             // Simple query without complex filters to avoid index requirements
             val snapshot = getCashTransactionsCollection()
-                .whereEqualTo("userId", userId)
                 .get().get(15, TimeUnit.SECONDS)
             
             val allTransactions = snapshot.documents.mapNotNull { doc ->
@@ -149,6 +148,69 @@ class CashTransactionRepository(
     }
     
     /**
+     * Manually refresh cash transactions data from Firebase
+     */
+    suspend fun refreshCashTransactions(
+        customerId: String? = null,
+        transactionType: CashTransactionType? = null
+    ): Result<List<CashTransaction>> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            if (userId.isBlank() || appId.isBlank()) {
+                return@withContext Result.success(emptyList())
+            }
+
+            val snapshot = getCashTransactionsCollection()
+                .get()
+                .get(15, TimeUnit.SECONDS)
+
+            val allTransactions = snapshot.documents.mapNotNull { doc ->
+                try {
+                    CashTransaction(
+                        id = doc.id,
+                        userId = doc.getString("userId") ?: "",
+                        customerId = doc.getString("customerId") ?: "",
+                        customerName = doc.getString("customerName") ?: "",
+                        amount = doc.getDouble("amount") ?: 0.0,
+                        transactionType = CashTransactionType.valueOf(
+                            doc.getString("transactionType") ?: "RECEIVE"
+                        ),
+                        note = doc.getString("note") ?: "",
+                        previousBalance = doc.getDouble("previousBalance") ?: 0.0,
+                        newBalance = doc.getDouble("newBalance") ?: 0.0,
+                        createdAt = doc.getTimestamp("createdAt")
+                    )
+                } catch (e: Exception) {
+                    println("Error parsing cash transaction: ${e.message}")
+                    null
+                }
+            }
+            
+            // Apply filters in memory to avoid Firebase index requirements
+            val filteredTransactions = allTransactions
+                .filter { transaction ->
+                    // Filter by customer if specified
+                    if (!customerId.isNullOrBlank()) {
+                        transaction.customerId == customerId
+                    } else {
+                        true
+                    }
+                }
+                .filter { transaction ->
+                    // Filter by transaction type if specified
+                    if (transactionType != null) {
+                        transaction.transactionType == transactionType
+                    } else {
+                        true
+                    }
+                }
+
+            Result.success(filteredTransactions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Listen to cash transaction history in real-time
      * Simplified to avoid Firebase index requirements
      */
@@ -164,7 +226,6 @@ class CashTransactionRepository(
 
         // Simple query without complex filters to avoid index requirements
         getCashTransactionsCollection()
-            .whereEqualTo("userId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("Error listening to cash transactions: ${error.message}")
@@ -250,7 +311,6 @@ class CashTransactionRepository(
     suspend fun getCashTransactionsByCustomerId(customerId: String): Result<List<CashTransaction>> = withContext(Dispatchers.IO) {
         return@withContext try {
             val snapshot = getCashTransactionsCollection()
-                .whereEqualTo("userId", userId)
                 .whereEqualTo("customerId", customerId)
                 .orderBy("createdAt", com.google.cloud.firestore.Query.Direction.DESCENDING)
                 .get()

@@ -143,7 +143,7 @@ class EntityRepository(
             onEntitiesChanged(emptyList())
             return
         }
-        getEntitiesCollection().whereEqualTo("userId", userId).addSnapshotListener { snapshot, error ->
+        getEntitiesCollection().addSnapshotListener { snapshot, error ->
             if (error != null) {
                 println("Error listening to entities: ${error.message}")
                 return@addSnapshotListener

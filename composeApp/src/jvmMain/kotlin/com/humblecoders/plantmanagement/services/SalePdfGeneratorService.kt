@@ -252,7 +252,7 @@ class SalePdfGeneratorService {
         </div>
         ${if (sale.discountType.name == "DISCOUNT_PREMIUM") """
         <div class="details-row">
-            <div class="details-label">Discounted Rate per Kg:</div>
+            <div class="details-label">Offered Rate per Kg:</div>
             <div class="details-value">Rs ${formatAmount(sale.discountedRatePerKg)}</div>
         </div>
         """ else ""}

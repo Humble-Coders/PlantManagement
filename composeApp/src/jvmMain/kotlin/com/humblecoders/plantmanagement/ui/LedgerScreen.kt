@@ -143,6 +143,7 @@ fun LedgerScreen(
             .fillMaxSize()
             .background(Color(0xFF111827))
             .padding(16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         // Header
         Row(
@@ -429,7 +430,7 @@ fun LedgerScreen(
                     
                     // Table Content
                     LazyColumn(
-                        modifier = Modifier.height(400.dp),
+                        modifier = Modifier.heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(1.dp)
                     ) {
                         items(filteredAndSortedSummaries) { summary ->

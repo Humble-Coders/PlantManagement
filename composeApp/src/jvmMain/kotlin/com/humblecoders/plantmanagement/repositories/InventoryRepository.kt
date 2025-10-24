@@ -98,7 +98,7 @@ class InventoryRepository(
             return
         }
 
-        getInventoryCollection().whereEqualTo("userId", userId).addSnapshotListener { snapshot, error ->
+        getInventoryCollection().addSnapshotListener { snapshot, error ->
             if (error != null) {
                 println("Error listening to inventory: ${error.message}")
                 return@addSnapshotListener

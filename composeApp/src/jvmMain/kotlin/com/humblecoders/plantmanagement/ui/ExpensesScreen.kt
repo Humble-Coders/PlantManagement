@@ -33,6 +33,7 @@ import com.humblecoders.plantmanagement.ui.components.ExpenseCategoryManagementD
 import com.humblecoders.plantmanagement.ui.components.DatePicker
 import com.humblecoders.plantmanagement.utils.toComposeImageBitmap
 import com.humblecoders.plantmanagement.viewmodels.ExpenseViewModel
+import com.humblecoders.plantmanagement.repositories.ExpenseSummary
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.imageio.ImageIO
@@ -40,6 +41,7 @@ import javax.imageio.ImageIO
 @Composable
 fun ExpensesScreen(
     expenseViewModel: ExpenseViewModel,
+    userRole: com.humblecoders.plantmanagement.data.UserRole?,
     onBack: () -> Unit
 ) {
     var showAddExpenseDialog by remember { mutableStateOf(false) }
@@ -71,6 +73,7 @@ fun ExpensesScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF111827))
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Row(
@@ -358,13 +361,14 @@ fun ExpensesScreen(
                     }
                 }
             } else {
-                LazyColumn(
+                Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filteredExpenses) { expense ->
+                    filteredExpenses.forEach { expense ->
                         ExpenseCard(
                             expense = expense,
                             categories = expenseState.categories,
+                            userRole = userRole,
                             onDelete = { showDeleteConfirmDialog = expense }
                         )
                     }
@@ -419,7 +423,7 @@ private fun ExpenseSummaryCard(summary: com.humblecoders.plantmanagement.reposit
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            backgroundColor = Color(0xFFEF4444),
+            backgroundColor = Color(0xFF1F2937),
             shape = RoundedCornerShape(12.dp),
             elevation = 4.dp
         ) {
@@ -430,19 +434,19 @@ private fun ExpenseSummaryCard(summary: com.humblecoders.plantmanagement.reposit
                 Icon(
                     Icons.Default.TrendingDown,
                     contentDescription = "Total Expenses",
-                    tint = Color.White,
+                    tint = Color(0xFFEF4444),
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Total Expenses",
-                    color = Color.White,
+                    color = Color(0xFF9CA3AF),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = "Rs.${String.format("%.2f", summary.totalExpenses)}",
-                    color = Color.White,
+                    color = Color(0xFFEF4444),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -455,6 +459,7 @@ private fun ExpenseSummaryCard(summary: com.humblecoders.plantmanagement.reposit
 private fun ExpenseCard(
     expense: Expense,
     categories: List<ExpenseCategory>,
+    userRole: com.humblecoders.plantmanagement.data.UserRole?,
     onDelete: () -> Unit
 ) {
     val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
@@ -496,7 +501,7 @@ private fun ExpenseCard(
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    if (expense.imageUrl.isNotBlank()) {
+                    if (expense.documentUrls.isNotEmpty()) {
                         Icon(
                             Icons.Default.Image,
                             contentDescription = "Has Image",
@@ -537,7 +542,7 @@ private fun ExpenseCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // View Image Button - Only show if expense has an image
-                    if (expense.imageUrl.isNotBlank()) {
+                    if (expense.documentUrls.isNotEmpty()) {
                         OutlinedButton(
                             onClick = { showImageDialog = true },
                             colors = ButtonDefaults.outlinedButtonColors(
@@ -564,25 +569,28 @@ private fun ExpenseCard(
                         }
                     }
 
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            tint = Color(0xFF9CA3AF),
-                            modifier = Modifier.size(16.dp)
-                        )
+                    // Only show delete button for admin users
+                    if (userRole == com.humblecoders.plantmanagement.data.UserRole.ADMIN) {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = Color(0xFF9CA3AF),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
         }
     }
     
-    if (showImageDialog && expense.imageUrl.isNotBlank()) {
-        ImageViewerDialog(
-            imageUrl = expense.imageUrl,
+    if (showImageDialog && expense.documentUrls.isNotEmpty()) {
+        DocumentViewDialog(
+            documentUrls = expense.documentUrls,
             onDismiss = { showImageDialog = false }
         )
     }
@@ -958,6 +966,174 @@ private fun ImageViewerDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DocumentViewDialog(
+    documentUrls: List<String>,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(0.9f)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Expense Documents",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF9FAFB)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Display documents
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(documentUrls) { documentUrl ->
+                        DocumentItem(
+                            documentUrl = documentUrl,
+                            onClick = {
+                                try {
+                                    val fixedUrl = fixImageUrl(documentUrl)
+                                    java.awt.Desktop.getDesktop().browse(java.net.URI(fixedUrl))
+                                } catch (e: Exception) {
+                                    println("Error opening URL: ${e.message}")
+                                    e.printStackTrace()
+                                }
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFFEF4444)
+                    )
+                ) {
+                    Text("Close", color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentItem(
+    documentUrl: String,
+    onClick: () -> Unit
+) {
+    val isPdf = documentUrl.lowercase().contains(".pdf")
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        backgroundColor = Color(0xFF374151),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (isPdf) {
+                Icon(
+                    Icons.Default.PictureAsPdf,
+                    contentDescription = "PDF Document",
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(32.dp)
+                )
+                Text(
+                    text = "PDF Document",
+                    color = Color(0xFFF9FAFB),
+                    fontWeight = FontWeight.Medium
+                )
+            } else {
+                // Load and display image thumbnail
+                var imageBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+                var isLoading by remember { mutableStateOf(true) }
+                
+                LaunchedEffect(documentUrl) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        try {
+                            val url = java.net.URL(documentUrl)
+                            val connection = url.openConnection()
+                            connection.connect()
+                            val inputStream = connection.getInputStream()
+                            val bufferedImage = ImageIO.read(inputStream)
+                            imageBitmap = bufferedImage.toComposeImageBitmap()
+                            isLoading = false
+                        } catch (e: Exception) {
+                            isLoading = false
+                        }
+                    }
+                }
+                
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier.size(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color(0xFFEF4444),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else if (imageBitmap != null) {
+                    Image(
+                        bitmap = imageBitmap!!,
+                        contentDescription = "Document Thumbnail",
+                        modifier = Modifier.size(32.dp)
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Image,
+                        contentDescription = "Image Document",
+                        tint = Color(0xFF3B82F6),
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                Text(
+                    text = "Image Document",
+                    color = Color(0xFFF9FAFB),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            
+            Spacer(modifier = Modifier.weight(1f))
+            
+            Icon(
+                Icons.Default.OpenInBrowser,
+                contentDescription = "Open in Browser",
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

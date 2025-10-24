@@ -40,6 +40,10 @@ fun PendingBillHistoryScreen(
     var showFromDatePicker by remember { mutableStateOf(false) }
     var showToDatePicker by remember { mutableStateOf(false) }
     
+    // State for clearance records dialog
+    var showClearanceRecordsDialog by remember { mutableStateOf(false) }
+    var selectedBillForClearance by remember { mutableStateOf<PendingBill?>(null) }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -264,7 +268,13 @@ fun PendingBillHistoryScreen(
                 } else {
                     // Bills list
                     items(filteredBills) { bill ->
-                        BilledBillCard(bill = bill)
+                        BilledBillCard(
+                            bill = bill,
+                            onViewClearanceRecords = { 
+                                selectedBillForClearance = bill
+                                showClearanceRecordsDialog = true
+                            }
+                        )
                     }
                 }
             }
@@ -369,6 +379,20 @@ fun PendingBillHistoryScreen(
                 }
             }
         }
+    }
+    
+    // Clearance Records Dialog
+    if (showClearanceRecordsDialog && selectedBillForClearance != null) {
+        ClearanceRecordsDialog(
+            pendingBill = selectedBillForClearance!!,
+            clearanceRecords = pendingBillState.clearanceRecords.filter { 
+                it.pendingBillId == selectedBillForClearance!!.id 
+            },
+            onDismiss = { 
+                showClearanceRecordsDialog = false
+                selectedBillForClearance = null
+            }
+        )
     }
 }
 
@@ -566,7 +590,10 @@ fun AdvancedFiltersSection(
 }
 
 @Composable
-fun BilledBillCard(bill: PendingBill) {
+fun BilledBillCard(
+    bill: PendingBill,
+    onViewClearanceRecords: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         backgroundColor = Color(0xFF1F2937),
@@ -781,6 +808,293 @@ fun BilledBillCard(bill: PendingBill) {
                     color = Color(0xFF9CA3AF),
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+            
+            // View button (only show if there are clearance records)
+            if (bill.clearedQuantity > 0) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = onViewClearanceRecords,
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Visibility,
+                                contentDescription = "View",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "View Clearance Records",
+                                color = Color.White,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ClearanceRecordCard(record: PendingBillClearanceRecord) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = Color(0xFF1F2937),
+        shape = RoundedCornerShape(12.dp),
+        elevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            // Header row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = record.customerName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF9FAFB)
+                    )
+                    
+                }
+                
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        text = record.clearanceDate,
+                        fontSize = 14.sp,
+                        color = Color(0xFF9CA3AF)
+                    )
+                    Text(
+                        text = "CLEARED",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF10B981)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Details row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Quantity cleared
+                Column {
+                    Text(
+                        text = "Quantity Cleared",
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                    Text(
+                        text = "${String.format("%.2f", record.quantityCleared)} kg",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF10B981)
+                    )
+                }
+                
+                // Created date
+                Column {
+                    Text(
+                        text = "Recorded On",
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                    Text(
+                        text = record.createdAt?.let { 
+                            java.time.LocalDateTime.ofEpochSecond(
+                                it.seconds, 
+                                it.nanos, 
+                                java.time.ZoneOffset.UTC
+                            ).format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"))
+                        } ?: "Unknown",
+                        fontSize = 14.sp,
+                        color = Color(0xFFF9FAFB)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ClearanceRecordsDialog(
+    pendingBill: PendingBill,
+    clearanceRecords: List<PendingBillClearanceRecord>,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .width(600.dp)
+                .heightIn(max = 600.dp),
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            elevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Clearance Records",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF9FAFB)
+                        )
+                        Text(
+                            text = "${pendingBill.firmName} - Bill #${pendingBill.billNumber}",
+                            fontSize = 14.sp,
+                            color = Color(0xFF9CA3AF)
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF9CA3AF))
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Quantity Cards
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Total Quantity Card
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = Color(0xFF111827),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Total Quantity",
+                                fontSize = 12.sp,
+                                color = Color(0xFF6B7280)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${String.format("%.2f", pendingBill.quantityKg)} kg",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFF9FAFB)
+                            )
+                        }
+                    }
+                    
+                    // Cleared Quantity Card
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = Color(0xFF111827),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Cleared Quantity",
+                                fontSize = 12.sp,
+                                color = Color(0xFF6B7280)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${String.format("%.2f", pendingBill.clearedQuantity)} kg",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981)
+                            )
+                        }
+                    }
+                    
+                    // Remaining Quantity Card
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = Color(0xFF111827),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Remaining",
+                                fontSize = 12.sp,
+                                color = Color(0xFF6B7280)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${String.format("%.2f", pendingBill.quantityKg - pendingBill.clearedQuantity)} kg",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFF59E0B)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Clearance Records List
+                if (clearanceRecords.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No clearance records found",
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 16.sp
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(clearanceRecords) { record ->
+                            ClearanceRecordCard(record = record)
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Close button
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Close", color = Color.White)
+                }
             }
         }
     }

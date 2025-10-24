@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.humblecoders.plantmanagement.data.PendingBill
 import com.humblecoders.plantmanagement.data.PendingBillStatus
+import com.humblecoders.plantmanagement.data.PendingBillClearanceRecord
 import com.humblecoders.plantmanagement.repositories.PendingBillRepository
 import com.humblecoders.plantmanagement.viewmodels.SortDirection
 import kotlinx.coroutines.CoroutineScope
@@ -13,10 +14,12 @@ import kotlinx.coroutines.launch
 
 data class PendingBillState(
     val pendingBills: List<PendingBill> = emptyList(),
+    val clearanceRecords: List<PendingBillClearanceRecord> = emptyList(),
     val isLoading: Boolean = false,
     val isAdding: Boolean = false,
     val isUpdating: Boolean = false,
     val isDeleting: Boolean = false,
+    val isLoadingClearanceRecords: Boolean = false,
     val error: String? = null,
     val successMessage: String? = null,
     val searchQuery: String = "",
@@ -50,6 +53,7 @@ class PendingBillViewModel(
 
     init {
         loadPendingBills()
+        loadClearanceRecords()
     }
 
     /**
@@ -70,6 +74,29 @@ class PendingBillViewModel(
                 pendingBillState.copy(
                     isLoading = false,
                     error = result.exceptionOrNull()?.message ?: "Failed to load pending bills"
+                )
+            }
+        }
+    }
+
+    /**
+     * Load all clearance records
+     */
+    fun loadClearanceRecords() {
+        viewModelScope.launch {
+            pendingBillState = pendingBillState.copy(isLoadingClearanceRecords = true, error = null)
+            
+            val result = pendingBillRepository.getAllClearanceRecords()
+            
+            pendingBillState = if (result.isSuccess) {
+                pendingBillState.copy(
+                    isLoadingClearanceRecords = false,
+                    clearanceRecords = result.getOrNull() ?: emptyList()
+                )
+            } else {
+                pendingBillState.copy(
+                    isLoadingClearanceRecords = false,
+                    error = result.exceptionOrNull()?.message ?: "Failed to load clearance records"
                 )
             }
         }
@@ -105,14 +132,15 @@ class PendingBillViewModel(
     /**
      * Clear a pending bill (partial or full)
      */
-    fun clearBill(pendingBillId: String, clearedQuantity: Double) {
+    fun clearBill(pendingBillId: String, clearedQuantity: Double, customerName: String) {
         viewModelScope.launch {
             pendingBillState = pendingBillState.copy(isUpdating = true, error = null)
             
-            val result = pendingBillRepository.clearBill(pendingBillId, clearedQuantity)
+            val result = pendingBillRepository.clearBill(pendingBillId, clearedQuantity, customerName)
             
             pendingBillState = if (result.isSuccess) {
                 loadPendingBills() // Reload to get updated list
+                loadClearanceRecords() // Load clearance records
                 pendingBillState.copy(
                     isUpdating = false,
                     successMessage = "Bill cleared successfully"

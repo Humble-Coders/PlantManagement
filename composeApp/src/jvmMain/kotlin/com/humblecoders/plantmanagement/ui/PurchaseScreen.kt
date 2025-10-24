@@ -30,6 +30,8 @@ import com.humblecoders.plantmanagement.viewmodels.SortDirection
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import com.humblecoders.plantmanagement.ui.components.DatePicker
+import com.humblecoders.plantmanagement.ui.components.SearchableCustomerDropdown
+import com.humblecoders.plantmanagement.ui.components.SearchableItemDropdown
 import com.humblecoders.plantmanagement.services.FirebaseStorageService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -58,8 +60,12 @@ fun PurchaseScreen(
     var purchaseToDelete by remember { mutableStateOf<Purchase?>(null) }
     var showCashOutDialog by remember { mutableStateOf(false) }
     var showCashOutHistoryDialog by remember { mutableStateOf(false) }
+    var isUploadingDocument by remember { mutableStateOf(false) }
+    var uploadingPurchaseId by remember { mutableStateOf<String?>(null) }
     
     val isAdmin = userRole == UserRole.ADMIN
+    val storageService = remember { FirebaseStorageService(com.humblecoders.plantmanagement.FirebaseCredentialsHolder.credentials) }
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(purchaseState.successMessage, purchaseState.error) {
         if (purchaseState.successMessage != null || purchaseState.error != null) {
@@ -340,7 +346,45 @@ fun PurchaseScreen(
                         purchaseToView = it
                         showViewDialog = true
                     },
-                    isAdmin = isAdmin
+                    isAdmin = isAdmin,
+                    isUploadingDocument = isUploadingDocument,
+                    uploadingPurchaseId = uploadingPurchaseId,
+                    onUploadDocument = { purchase ->
+                        // Handle file picker on main thread first
+                        val fileChooser = javax.swing.JFileChooser()
+                        fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
+                            "Documents (Images, PDFs)", "jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"
+                        )
+                        val result = fileChooser.showOpenDialog(null)
+                        
+                        if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+                            val selectedFile = fileChooser.selectedFile
+                            
+                            // Now handle upload in coroutine
+                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                try {
+                                    isUploadingDocument = true
+                                    uploadingPurchaseId = purchase.id
+                                    
+                                    val uploadResult = storageService.uploadDocument(selectedFile, "purchases")
+                                    
+                                    if (uploadResult.isSuccess) {
+                                        val documentUrl = uploadResult.getOrNull() ?: ""
+                                        val updatedPurchase = purchase.copy(imageUrl = documentUrl)
+                                        purchaseViewModel.updatePurchase(purchase.id, updatedPurchase)
+                                    } else {
+                                        println("Upload failed: ${uploadResult.exceptionOrNull()?.message}")
+                                    }
+                                } catch (e: Exception) {
+                                    println("Upload error: ${e.message}")
+                                    e.printStackTrace()
+                                } finally {
+                                    isUploadingDocument = false
+                                    uploadingPurchaseId = null
+                                }
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -448,7 +492,10 @@ fun PurchaseTable(
     purchases: List<Purchase>,
     onDeleteClick: (Purchase) -> Unit,
     onViewClick: (Purchase) -> Unit,
-    isAdmin: Boolean
+    isAdmin: Boolean,
+    isUploadingDocument: Boolean,
+    uploadingPurchaseId: String?,
+    onUploadDocument: (Purchase) -> Unit
 ) {
     Column {
         Row(
@@ -458,11 +505,12 @@ fun PurchaseTable(
                 .padding(12.dp)
         ) {
             Text("Date", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.10f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Entity", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.18f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Items", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.16f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Grand Total", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Pending", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Status", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.12f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Entity", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.16f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Items", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.14f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Grand Total", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.10f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Pending", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.10f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Status", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.10f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Upload", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.10f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Actions", color = Color(0xFF9CA3AF), modifier = Modifier.weight(0.20f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
@@ -477,9 +525,9 @@ fun PurchaseTable(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(purchase.purchaseDate, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.10f), fontSize = 14.sp)
-                Text(purchase.firmName, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.18f), fontSize = 14.sp)
+                Text(purchase.firmName, color = Color(0xFFF9FAFB), modifier = Modifier.weight(0.16f), fontSize = 14.sp)
 
-                Column(modifier = Modifier.weight(0.16f)) {
+                Column(modifier = Modifier.weight(0.14f)) {
                     purchase.items.take(2).forEach { item ->
                         Text(
                             "${item.itemName} (${String.format("%.2f", item.quantity)} ${item.unit})",
@@ -525,10 +573,46 @@ fun PurchaseTable(
                         PaymentStatus.PENDING -> Color(0xFFF59E0B)
                         PaymentStatus.PARTIALLY_PAID -> Color(0xFF3B82F6)
                     },
-                    modifier = Modifier.weight(0.12f),
+                    modifier = Modifier.weight(0.10f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
+
+                // Upload column
+                Box(
+                    modifier = Modifier.weight(0.10f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (purchase.imageUrl.isNotBlank()) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Document uploaded",
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    } else {
+                        IconButton(
+                            onClick = { onUploadDocument(purchase) },
+                            enabled = !isUploadingDocument,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            if (isUploadingDocument && uploadingPurchaseId == purchase.id) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color(0xFF06B6D4),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.CloudUpload,
+                                    contentDescription = "Upload document",
+                                    tint = Color(0xFF06B6D4),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
 
                 Row(
                     modifier = Modifier.weight(0.20f),
@@ -584,8 +668,8 @@ fun AddPurchaseDialog(
     var amountPaid by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var purchaseItems by remember { mutableStateOf(listOf<PurchaseItem>()) }
-    var selectedImageFile by remember { mutableStateOf<java.io.File?>(null) }
-    var isUploadingImage by remember { mutableStateOf(false) }
+    var selectedDocumentFile by remember { mutableStateOf<java.io.File?>(null) }
+    var isUploadingDocument by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val storageService = remember { FirebaseStorageService(com.humblecoders.plantmanagement.FirebaseCredentialsHolder.credentials) }
 
@@ -642,37 +726,13 @@ fun AddPurchaseDialog(
                 ) {
                     // Entity Dropdown
                     item {
-                        var entityExpanded by remember { mutableStateOf(false) }
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = { entityExpanded = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = Color.Black
-                                )
-                            ) {
-                                Text(
-                                    text = if (selectedEntityId.isBlank()) "Select Entity"
-                                    else customers.find { it.id == selectedEntityId }?.firmName ?: "Select Entity",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                            }
-
-                            DropdownMenu(
-                                expanded = entityExpanded,
-                                onDismissRequest = { entityExpanded = false }
-                            ) {
-                                customers.forEach { entity ->
-                                    DropdownMenuItem(onClick = {
-                                        selectedEntityId = entity.id
-                                        entityExpanded = false
-                                    }) {
-                                        Text(entity.firmName)
-                                    }
-                                }
-                            }
-                        }
+                        SearchableCustomerDropdown(
+                            customers = customers,
+                            selectedCustomerId = selectedEntityId,
+                            onCustomerSelected = { selectedEntityId = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = "Select Entity"
+                        )
                     }
 
                     // Purchase Date
@@ -907,7 +967,7 @@ fun AddPurchaseDialog(
                     // Image Selection
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Purchase Image (optional)", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text("Purchase Document (optional)", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -917,23 +977,23 @@ fun AddPurchaseDialog(
                                     onClick = {
                                         val fileChooser = javax.swing.JFileChooser()
                                         fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
-                                            "Image files", "jpg", "jpeg", "png", "gif", "webp"
+                                            "Documents (Images, PDFs)", "jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"
                                         )
                                         val result = fileChooser.showOpenDialog(null)
                                         if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
-                                            selectedImageFile = fileChooser.selectedFile
+                                            selectedDocumentFile = fileChooser.selectedFile
                                         }
                                     },
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         contentColor = Color(0xFF06B6D4)
                                     )
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = "Select Image", tint = Color(0xFF06B6D4))
+                                    Icon(Icons.Default.Add, contentDescription = "Select Document", tint = Color(0xFF06B6D4))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Select Image", color = Color(0xFF06B6D4))
+                                    Text("Select Document", color = Color(0xFF06B6D4))
                                 }
                                 
-                                if (selectedImageFile != null) {
+                                if (selectedDocumentFile != null) {
                                     Card(
                                         backgroundColor = Color(0xFF111827),
                                         modifier = Modifier.weight(1f)
@@ -949,10 +1009,10 @@ fun AddPurchaseDialog(
                                                 modifier = Modifier.weight(1f)
                                             ) {
                                                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
-                                                Text(selectedImageFile!!.name, color = Color(0xFFF9FAFB), fontSize = 12.sp)
+                                                Text(selectedDocumentFile!!.name, color = Color(0xFFF9FAFB), fontSize = 12.sp)
                                             }
                                             IconButton(
-                                                onClick = { selectedImageFile = null },
+                                                onClick = { selectedDocumentFile = null },
                                                 modifier = Modifier.size(24.dp)
                                             ) {
                                                 Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
@@ -983,18 +1043,18 @@ fun AddPurchaseDialog(
                     Button(
                         onClick = {
                             coroutineScope.launch {
-                                isUploadingImage = true
-                                var imageUrl = ""
+                                isUploadingDocument = true
+                                var documentUrl = ""
                                 
-                                // Upload image if selected
-                                if (selectedImageFile != null) {
-                                    val uploadResult = storageService.uploadImage(selectedImageFile!!, "purchases")
+                                // Upload document if selected
+                                if (selectedDocumentFile != null) {
+                                    val uploadResult = storageService.uploadDocument(selectedDocumentFile!!, "purchases")
                                     if (uploadResult.isSuccess) {
-                                        imageUrl = uploadResult.getOrNull() ?: ""
+                                        documentUrl = uploadResult.getOrNull() ?: ""
                                     }
                                 }
                                 
-                                isUploadingImage = false
+                                isUploadingDocument = false
                                 
                                 val selectedEntity = customers.find { it.id == selectedEntityId }
                                 val paidAmount = amountPaid.toDoubleOrNull() ?: 0.0
@@ -1018,18 +1078,18 @@ fun AddPurchaseDialog(
                                         paymentStatus = paymentStatus,
                                         amountPaid = paidAmount,
                                         notes = notes,
-                                        imageUrl = imageUrl
+                                        imageUrl = documentUrl
                                     )
                                 )
                             }
                         },
-                        enabled = selectedEntityId.isNotBlank() && purchaseItems.isNotEmpty() && !isUploadingImage,
+                        enabled = selectedEntityId.isNotBlank() && purchaseItems.isNotEmpty() && !isUploadingDocument,
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = Color(0xFF06B6D4),
                             disabledBackgroundColor = Color(0xFF9CA3AF)
                         )
                     ) {
-                        if (isUploadingImage) {
+                        if (isUploadingDocument) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 color = Color(0xFF111827),
@@ -1037,7 +1097,7 @@ fun AddPurchaseDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text(if (isUploadingImage) "Uploading..." else "Log Purchase", color = Color(0xFF111827))
+                        Text(if (isUploadingDocument) "Uploading..." else "Log Purchase", color = Color(0xFF111827))
                     }
                 }
             }
@@ -1101,38 +1161,16 @@ fun PurchaseItemCard(
                 }
             }
 
-            // Inventory Item Dropdown
-                var itemExpanded by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { itemExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.Black
-                        )
-                    ) {
-                    Text(
-                        text = selectedInventoryItem?.name ?: "Select Item",
-                        modifier = Modifier.weight(1f),
-                        color = Color.Black
-                    )
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                    }
-
-                    DropdownMenu(
-                        expanded = itemExpanded,
-                        onDismissRequest = { itemExpanded = false }
-                    ) {
-                    inventoryItems.forEach { invItem ->
-                            DropdownMenuItem(onClick = {
-                            selectedInventoryItemId = invItem.id
-                                itemExpanded = false
-                            }) {
-                            Text("${invItem.name} (${invItem.unit})")
-                            }
-                        }
-                    }
-                }
+            // Inventory Item Searchable Dropdown
+            SearchableItemDropdown(
+                items = inventoryItems,
+                selectedItemId = selectedInventoryItemId,
+                onItemSelected = { itemId ->
+                    selectedInventoryItemId = itemId
+                },
+                placeholder = "Select Item",
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -1301,47 +1339,47 @@ fun ViewPurchaseDialog(
                             Text(if (isGeneratingPdf) "Generating..." else "Download PDF", color = Color(0xFF10B981), fontSize = 12.sp)
                         }
                         
-                        // Print Button
-                        OutlinedButton(
-                            onClick = {
-                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        isGeneratingPdf = true
-                                    }
-                                    try {
-                                        val tempFile = java.io.File.createTempFile("purchase_bill_", ".pdf")
-                                        val pdfResult = pdfService.generatePurchaseBill(purchase, tempFile)
-                                        
-                                        if (pdfResult.isSuccess) {
-                                            // Print the PDF
-                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                java.awt.Desktop.getDesktop().print(tempFile)
-                                            }
-                                        }
-                                    } catch (e: Exception) {
-                                        println("Error printing PDF: ${e.message}")
-                                        e.printStackTrace()
-                                    } finally {
-                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                            isGeneratingPdf = false
-                                        }
-                                    }
-                                }
-                            },
-                            enabled = !isGeneratingPdf,
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color(0xFF06B6D4)
-                            )
-                        ) {
-                            Icon(
-                                Icons.Default.Send,
-                                contentDescription = "Print",
-                                tint = Color(0xFF06B6D4),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Print", color = Color(0xFF06B6D4), fontSize = 12.sp)
-                        }
+//                        // Print Button
+//                        OutlinedButton(
+//                            onClick = {
+//                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+//                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+//                                        isGeneratingPdf = true
+//                                    }
+//                                    try {
+//                                        val tempFile = java.io.File.createTempFile("purchase_bill_", ".pdf")
+//                                        val pdfResult = pdfService.generatePurchaseBill(purchase, tempFile)
+//
+//                                        if (pdfResult.isSuccess) {
+//                                            // Print the PDF
+//                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+//                                                java.awt.Desktop.getDesktop().print(tempFile)
+//                                            }
+//                                        }
+//                                    } catch (e: Exception) {
+//                                        println("Error printing PDF: ${e.message}")
+//                                        e.printStackTrace()
+//                                    } finally {
+//                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+//                                            isGeneratingPdf = false
+//                                        }
+//                                    }
+//                                }
+//                            },
+//                            enabled = !isGeneratingPdf,
+//                            colors = ButtonDefaults.outlinedButtonColors(
+//                                contentColor = Color(0xFF06B6D4)
+//                            )
+//                        ) {
+//                            Icon(
+//                                Icons.Default.Send,
+//                                contentDescription = "Print",
+//                                tint = Color(0xFF06B6D4),
+//                                modifier = Modifier.size(16.dp)
+//                            )
+//                            Spacer(modifier = Modifier.width(4.dp))
+//                            Text("Print", color = Color(0xFF06B6D4), fontSize = 12.sp)
+//                        }
                         
                         IconButton(onClick = onDismiss) {
                             Icon(
@@ -1466,7 +1504,7 @@ fun ViewPurchaseDialog(
                         }
                     }
 
-                    // Image Display
+                    // Document Display
                     if (purchase.imageUrl.isNotBlank()) {
                         item {
                             Card(
@@ -1479,7 +1517,7 @@ fun ViewPurchaseDialog(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("Purchase Image", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+                                        Text("Purchase Document", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
                                         OutlinedButton(
                                             onClick = {
                                                 try {
@@ -1487,7 +1525,7 @@ fun ViewPurchaseDialog(
                                                     val fixedUrl = fixImageUrl(purchase.imageUrl)
                                                     java.awt.Desktop.getDesktop().browse(java.net.URI(fixedUrl))
                                                 } catch (e: Exception) {
-                                                    println("Error opening image: ${e.message}")
+                                                    println("Error opening document: ${e.message}")
                                                     e.printStackTrace()
                                                 }
                                             },
@@ -1495,19 +1533,50 @@ fun ViewPurchaseDialog(
                                                 contentColor = Color(0xFF06B6D4)
                                             )
                                         ) {
-                                            Text("View Image", color = Color(0xFF06B6D4), fontSize = 12.sp)
+                                            Text("View Document", color = Color(0xFF06B6D4), fontSize = 12.sp)
                                         }
                                     }
                                     Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
                                     
-                                    // Display image
-                                    NetworkImage(
-                                        url = purchase.imageUrl,
-                                        contentDescription = "Purchase Image",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(200.dp)
-                                    )
+                                    // Display document (image or PDF)
+                                    val isPdf = purchase.imageUrl.lowercase().contains(".pdf")
+                                    if (isPdf) {
+                                        // Show PDF icon and info
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(
+                                                Icons.Default.PictureAsPdf,
+                                                contentDescription = "PDF Document",
+                                                tint = Color(0xFFEF4444),
+                                                modifier = Modifier.size(48.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = "PDF Document",
+                                                    color = Color(0xFFF9FAFB),
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = "Click 'View Document' to open in browser",
+                                                    color = Color(0xFF9CA3AF),
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        // Display image
+                                        NetworkImage(
+                                            url = purchase.imageUrl,
+                                            contentDescription = "Purchase Document",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(200.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

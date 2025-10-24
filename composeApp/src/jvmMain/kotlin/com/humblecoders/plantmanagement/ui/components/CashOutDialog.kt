@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.humblecoders.plantmanagement.data.PurchaseAllocation
 import com.humblecoders.plantmanagement.data.Entity
+import com.humblecoders.plantmanagement.ui.components.SearchableCustomerDropdown
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import kotlinx.coroutines.launch
@@ -98,76 +99,19 @@ fun CashOutDialog(
                 }
 
                 // Customer/Entity Selection
-                Text(
-                    text = "Select Customer/Entity",
-                    fontSize = 14.sp,
-                    color = Color(0xFF9CA3AF),
-                    modifier = Modifier.padding(bottom = 4.dp)
+                SearchableCustomerDropdown(
+                    customers = entities,
+                    selectedCustomerId = selectedEntity?.id ?: "",
+                    onCustomerSelected = { entityId ->
+                        selectedEntity = entities.find { it.id == entityId }
+                        // Reset allocations when customer changes
+                        allocations = emptyList()
+                        editableAllocations = emptyMap()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = "Select Customer",
+                    label = "Select Customer/Entity"
                 )
-                
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { showEntityDropdown = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFFF9FAFB),
-                            backgroundColor = Color(0xFF374151)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = selectedEntity?.firmName ?: "Select Customer",
-                                modifier = Modifier.weight(1f),
-                                color = Color(0xFFF9FAFB)
-                            )
-                            Icon(
-                                Icons.Default.ArrowDropDown, 
-                                contentDescription = null,
-                                tint = Color(0xFFF9FAFB)
-                            )
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = showEntityDropdown,
-                        onDismissRequest = { showEntityDropdown = false },
-                        modifier = Modifier
-                            .width(300.dp)
-                            .background(Color.White)
-                    ) {
-                        entities.forEach { entity ->
-                            DropdownMenuItem(
-                                onClick = {
-                                    selectedEntity = entity
-                                    showEntityDropdown = false
-                                    // Reset allocations when customer changes
-                                    allocations = emptyList()
-                                    editableAllocations = emptyMap()
-                                }
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    Text(
-                                        text = entity.firmName,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color.Black
-                                    )
-                                    if (entity.contactPerson.isNotBlank()) {
-                                        Text(
-                                            text = entity.contactPerson,
-                                            fontSize = 12.sp,
-                                            color = Color.DarkGray
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 

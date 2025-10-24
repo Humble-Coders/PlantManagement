@@ -15,7 +15,7 @@ class SaleRepository(
     private fun getEntitiesCollection() = firestore.collection("customers")
     private fun getInventoryCollection() = firestore.collection("inventory")
 
-    suspend fun addSale(sale: Sale): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun addSale(sale: Sale, skipInventoryDeduction: Boolean = false): Result<String> = withContext(Dispatchers.IO) {
         return@withContext try {
             val saleData = mapOf(
                 "userId" to userId,
@@ -58,7 +58,6 @@ class SaleRepository(
                 val entityDocFuture = transaction.get(entityRef)
 
                 val fortifiedRiceInventoryRef = getInventoryCollection()
-                    .whereEqualTo("userId", userId)
                     .whereEqualTo("name", "Fortified Rice")
                     .get()
                     .get(10, TimeUnit.SECONDS)
@@ -85,7 +84,7 @@ class SaleRepository(
                     transaction.update(entityRef, "balance", newBalance)
                 }
 
-                if (sale.deductFromInventory && inventoryData != null) {
+                if (sale.deductFromInventory && inventoryData != null && !skipInventoryDeduction) {
                     val (inventoryRef, inventoryDoc) = inventoryData
                     if (inventoryDoc.exists()) {
                         val currentQuantity = inventoryDoc.getDouble("quantity") ?: 0.0
@@ -159,7 +158,6 @@ class SaleRepository(
                     val entityDocFuture = transaction.get(entityRef)
 
                     val fortifiedRiceInventoryRef = getInventoryCollection()
-                        .whereEqualTo("userId", userId)
                         .whereEqualTo("name", "Fortified Rice")
                         .get()
                         .get(10, TimeUnit.SECONDS)
@@ -241,7 +239,6 @@ class SaleRepository(
                     val entityDocFuture = entityRef?.let { transaction.get(it) }
 
                     val fortifiedRiceInventoryRef = getInventoryCollection()
-                        .whereEqualTo("userId", userId)
                         .whereEqualTo("name", "Fortified Rice")
                         .get()
                         .get(10, TimeUnit.SECONDS)
@@ -308,7 +305,6 @@ class SaleRepository(
                     val entityDocFuture = entityRef?.let { transaction.get(it) }
 
                     val fortifiedRiceInventoryRef = getInventoryCollection()
-                        .whereEqualTo("userId", userId)
                         .whereEqualTo("name", "Fortified Rice")
                         .get()
                         .get(10, TimeUnit.SECONDS)
@@ -356,6 +352,90 @@ class SaleRepository(
         }
     }
 
+    /**
+     * Manually refresh sales data from Firebase
+     */
+    suspend fun refreshSales(): Result<List<Sale>> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            if (userId.isBlank() || appId.isBlank()) {
+                return@withContext Result.success(emptyList())
+            }
+
+            val snapshot = getSalesCollection()
+                .get()
+                .get(15, TimeUnit.SECONDS)
+
+            val sales = snapshot.documents.mapNotNull { doc ->
+                try {
+                    val customerId = doc.getString("customerId") ?: ""
+                    val customerCity = if (customerId.isNotBlank()) {
+                        try {
+                            val customerDoc = getEntitiesCollection().document(customerId).get().get(5, TimeUnit.SECONDS)
+                            customerDoc.getString("city") ?: ""
+                        } catch (e: Exception) {
+                            ""
+                        }
+                    } else {
+                        ""
+                    }
+
+                    Sale(
+                        id = doc.id,
+                        userId = doc.getString("userId") ?: "",
+                        customerId = customerId,
+                        firmName = doc.getString("firmName") ?: "",
+                        customerCity = customerCity,
+                        saleDate = doc.getString("saleDate") ?: "",
+                        billNumber = doc.getString("billNumber") ?: "",
+                        portalBatchNumber = doc.getString("portalBatchNumber") ?: "",
+                        quantityKg = doc.getDouble("quantityKg") ?: 0.0,
+                        numberOfBags = (doc.getLong("numberOfBags") ?: 0).toInt(),
+                        deductFromInventory = doc.getBoolean("deductFromInventory") ?: true,
+                        originalRatePerKg = doc.getDouble("originalRatePerKg") ?: 0.0,
+                        portalAmount = doc.getDouble("portalAmount") ?: 0.0,
+                        gstAmount = doc.getDouble("gstAmount") ?: 0.0,
+                        totalPortalAmount = doc.getDouble("totalPortalAmount") ?: 0.0,
+                        discountType = DiscountType.valueOf(
+                            doc.getString("discountType") ?: "NONE"
+                        ),
+                        discountedRatePerKg = doc.getDouble("discountedRatePerKg") ?: 0.0,
+                        extraQuantityKg = doc.getDouble("extraQuantityKg") ?: 0.0,
+                        revenueAmount = doc.getDouble("revenueAmount") ?: 0.0,
+                        totalRevenueAmount = doc.getDouble("totalRevenueAmount") ?: 0.0,
+                        differenceAmount = doc.getDouble("differenceAmount") ?: 0.0,
+                        portalAmountPaid = doc.getDouble("portalAmountPaid") ?: 0.0,
+                        saleStatus = SaleStatus.valueOf(
+                            doc.getString("saleStatus") ?: "PENDING"
+                        ),
+                        differenceAmountPaid = doc.getDouble("differenceAmountPaid") ?: 0.0,
+                        differenceStatus = DifferenceStatus.valueOf(
+                            doc.getString("differenceStatus") ?: "PENDING"
+                        ),
+                        clearedInventory = doc.getDouble("clearedInventory") ?: 0.0,
+                        truckNumber = doc.getString("truckNumber") ?: "",
+                        fareAmount = doc.getDouble("fareAmount") ?: 0.0,
+                        farePaidBy = FarePaidBy.valueOf(
+                            doc.getString("farePaidBy") ?: "CUSTOMER"
+                        ),
+                        notes = doc.getString("notes") ?: "",
+                        imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                        status = TransactionStatus.valueOf(
+                            doc.getString("status") ?: "APPROVED"
+                        ),
+                        createdAt = doc.getTimestamp("createdAt")
+                    )
+                } catch (e: Exception) {
+                    println("Error parsing sale document ${doc.id}: ${e.message}")
+                    null
+                }
+            }
+
+            Result.success(sales)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun listenToSales(onSalesChanged: (List<Sale>) -> Unit) {
         if (userId.isBlank() || appId.isBlank()) {
             onSalesChanged(emptyList())
@@ -363,7 +443,6 @@ class SaleRepository(
         }
 
         getSalesCollection()
-            .whereEqualTo("userId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("Error listening to sales: ${error.message}")
@@ -373,11 +452,24 @@ class SaleRepository(
                 if (snapshot != null) {
                     val sales = snapshot.documents.mapNotNull { doc ->
                         try {
+                            val customerId = doc.getString("customerId") ?: ""
+                            val customerCity = if (customerId.isNotBlank()) {
+                                try {
+                                    val customerDoc = getEntitiesCollection().document(customerId).get().get(5, TimeUnit.SECONDS)
+                                    customerDoc.getString("city") ?: ""
+                                } catch (e: Exception) {
+                                    ""
+                                }
+                            } else {
+                                ""
+                            }
+
                             Sale(
                                 id = doc.id,
                                 userId = doc.getString("userId") ?: "",
-                                customerId = doc.getString("customerId") ?: "",
+                                customerId = customerId,
                                 firmName = doc.getString("firmName") ?: "",
+                                customerCity = customerCity,
                                 saleDate = doc.getString("saleDate") ?: "",
                                 billNumber = doc.getString("billNumber") ?: "",
                                 portalBatchNumber = doc.getString("portalBatchNumber") ?: "",
@@ -469,18 +561,30 @@ class SaleRepository(
     suspend fun getSalesByCustomerId(customerId: String): Result<List<Sale>> = withContext(Dispatchers.IO) {
         return@withContext try {
             val snapshot = getSalesCollection()
-                .whereEqualTo("userId", userId)
                 .whereEqualTo("customerId", customerId)
                 .get()
                 .get(10, TimeUnit.SECONDS)
 
             val sales = snapshot.documents.mapNotNull { doc ->
                 try {
+                    val customerId = doc.getString("customerId") ?: ""
+                    val customerCity = if (customerId.isNotBlank()) {
+                        try {
+                            val customerDoc = getEntitiesCollection().document(customerId).get().get(5, TimeUnit.SECONDS)
+                            customerDoc.getString("city") ?: ""
+                        } catch (e: Exception) {
+                            ""
+                        }
+                    } else {
+                        ""
+                    }
+
                     Sale(
                         id = doc.id,
                         userId = doc.getString("userId") ?: "",
-                        customerId = doc.getString("customerId") ?: "",
+                        customerId = customerId,
                         firmName = doc.getString("firmName") ?: "",
+                        customerCity = customerCity,
                         saleDate = doc.getString("saleDate") ?: "",
                         billNumber = doc.getString("billNumber") ?: "",
                         portalBatchNumber = doc.getString("portalBatchNumber") ?: "",

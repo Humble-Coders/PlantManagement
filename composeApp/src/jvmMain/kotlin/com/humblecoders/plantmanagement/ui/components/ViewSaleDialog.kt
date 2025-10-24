@@ -9,6 +9,7 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.runtime.*
@@ -280,24 +281,24 @@ fun ViewSaleDialog(
                         }
                     }
 
-                    // Images
+                    // Documents
                     if (sale.imageUrls.isNotEmpty()) {
                         item {
                             Card(backgroundColor = Color(0xFF111827), shape = RoundedCornerShape(8.dp)) {
                                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("Sale Images", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                    Text("Sale Documents", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
                                     Divider(color = Color(0xFF374151), modifier = Modifier.padding(vertical = 4.dp))
                                     
-                                    // Display images in a grid
+                                    // Display documents in a grid
                                     androidx.compose.foundation.lazy.LazyRow(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         contentPadding = PaddingValues(vertical = 4.dp)
                                     ) {
                                         items(sale.imageUrls.size) { index ->
-                                            val imageUrl = sale.imageUrls[index]
-                                            SaleImageItem(
-                                                imageUrl = imageUrl,
-                                                imageIndex = index + 1
+                                            val documentUrl = sale.imageUrls[index]
+                                            SaleDocumentItem(
+                                                documentUrl = documentUrl,
+                                                documentIndex = index + 1
                                             )
                                         }
                                     }
@@ -341,86 +342,119 @@ fun ViewSaleDialog(
 }
 
 @Composable
-fun SaleImageItem(
-    imageUrl: String,
-    imageIndex: Int
+fun SaleDocumentItem(
+    documentUrl: String,
+    documentIndex: Int
 ) {
-    var showImageDialog by remember { mutableStateOf(false) }
+    var showDocumentDialog by remember { mutableStateOf(false) }
+    val isPdf = documentUrl.lowercase().contains(".pdf")
     
     Card(
         modifier = Modifier
             .size(120.dp)
-            .clickable { showImageDialog = true },
+            .clickable { showDocumentDialog = true },
         backgroundColor = Color(0xFF374151),
         shape = RoundedCornerShape(8.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Show actual image thumbnail
-            AsyncImage(
-                imageUrl = imageUrl,
-                contentDescription = "Sale Image $imageIndex",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                placeholder = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFF374151)),
-                        contentAlignment = Alignment.Center
+            if (isPdf) {
+                // Show PDF icon
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = Color(0xFF10B981),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "Loading...",
-                                color = Color(0xFF9CA3AF),
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                },
-                error = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFF374151)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Image,
-                                contentDescription = "Image",
-                                tint = Color(0xFF10B981),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "Image $imageIndex",
-                                color = Color(0xFFF9FAFB),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                "Click to view",
-                                color = Color(0xFF9CA3AF),
-                                fontSize = 8.sp
-                            )
-                        }
+                        Icon(
+                            Icons.Default.PictureAsPdf,
+                            contentDescription = "PDF Document",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "PDF Document",
+                            color = Color(0xFFF9FAFB),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            "Click to view",
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 8.sp
+                        )
                     }
                 }
-            )
+            } else {
+                // Show actual image thumbnail
+                AsyncImage(
+                    imageUrl = documentUrl,
+                    contentDescription = "Sale Document $documentIndex",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    placeholder = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF374151)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = Color(0xFF10B981),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    "Loading...",
+                                    color = Color(0xFF9CA3AF),
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    },
+                    error = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF374151)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Image,
+                                    contentDescription = "Image",
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    "Document $documentIndex",
+                                    color = Color(0xFFF9FAFB),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    "Click to view",
+                                    color = Color(0xFF9CA3AF),
+                                    fontSize = 8.sp
+                                )
+                            }
+                        }
+                    }
+                )
+            }
             
-            // Overlay with image number and click hint
+            // Overlay with document number and click hint
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -431,7 +465,7 @@ fun SaleImageItem(
                     .padding(4.dp)
             ) {
                 Text(
-                    "Image $imageIndex",
+                    "Doc $documentIndex",
                     color = Color.White,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
@@ -440,22 +474,24 @@ fun SaleImageItem(
         }
     }
     
-    // Image viewing dialog
-    if (showImageDialog) {
-        ImageViewDialog(
-            imageUrl = imageUrl,
-            imageIndex = imageIndex,
-            onDismiss = { showImageDialog = false }
+    // Document viewing dialog
+    if (showDocumentDialog) {
+        DocumentViewDialog(
+            documentUrl = documentUrl,
+            documentIndex = documentIndex,
+            onDismiss = { showDocumentDialog = false }
         )
     }
 }
 
 @Composable
-fun ImageViewDialog(
-    imageUrl: String,
-    imageIndex: Int,
+fun DocumentViewDialog(
+    documentUrl: String,
+    documentIndex: Int,
     onDismiss: () -> Unit
 ) {
+    val isPdf = documentUrl.lowercase().contains(".pdf")
+    
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -476,7 +512,7 @@ fun ImageViewDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Sale Image $imageIndex",
+                        "Sale Document $documentIndex",
                         color = Color(0xFFF9FAFB),
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
@@ -486,7 +522,7 @@ fun ImageViewDialog(
                     }
                 }
                 
-                // Image content
+                // Document content
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -494,12 +530,41 @@ fun ImageViewDialog(
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    AsyncImage(
-                        imageUrl = imageUrl,
-                        contentDescription = "Sale Image $imageIndex",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                    )
+                    if (isPdf) {
+                        // Show PDF info
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Default.PictureAsPdf,
+                                contentDescription = "PDF Document",
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(128.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "PDF Document",
+                                color = Color(0xFFF9FAFB),
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Click 'Open in Browser' to view the PDF",
+                                color = Color(0xFF9CA3AF),
+                                fontSize = 16.sp
+                            )
+                        }
+                    } else {
+                        // Show image
+                        AsyncImage(
+                            imageUrl = documentUrl,
+                            contentDescription = "Sale Document $documentIndex",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                    }
                 }
                 
                 // Footer with action buttons
@@ -513,9 +578,9 @@ fun ImageViewDialog(
                 ) {
                     Button(
                         onClick = {
-                            // Open image in browser
+                            // Open document in browser
                             try {
-                                java.awt.Desktop.getDesktop().browse(java.net.URI(imageUrl))
+                                java.awt.Desktop.getDesktop().browse(java.net.URI(documentUrl))
                             } catch (e: Exception) {
                                 println("Error opening browser: ${e.message}")
                             }

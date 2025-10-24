@@ -21,6 +21,7 @@ import com.humblecoders.plantmanagement.data.*
 import com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel
 import com.humblecoders.plantmanagement.ui.components.AddPendingBillDialog
 import com.humblecoders.plantmanagement.ui.components.AddSaleDialog
+import com.humblecoders.plantmanagement.ui.components.SearchableCustomerDropdown
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -279,8 +280,8 @@ fun PendingBillsScreen(
                 showClearBillDialog = false
                 pendingBillToClear = null
             },
-            onClearBill = { clearedQuantity ->
-                pendingBillViewModel.clearBill(pendingBillToClear!!.id, clearedQuantity)
+            onClearBill = { clearedQuantity, customerName ->
+                pendingBillViewModel.clearBill(pendingBillToClear!!.id, clearedQuantity, customerName)
                 // Dialog will be closed automatically when operation completes
                 // We'll handle this in the success/error state handling
             }
@@ -449,14 +450,35 @@ fun ClearBillDialog(
     inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
     storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService,
     onDismiss: () -> Unit,
-    onClearBill: (Double) -> Unit
+    onClearBill: (Double, String) -> Unit
 ) {
     var clearedQuantity by remember { mutableStateOf("") }
+    var selectedCustomer by remember { mutableStateOf<Entity?>(null) }
     var errorMessage by remember { mutableStateOf("") }
     var showAddSaleDialog by remember { mutableStateOf(false) }
     
+    // Set default customer to the bill's customer
+    LaunchedEffect(pendingBill.customerId) {
+        selectedCustomer = customers.find { it.id == pendingBill.customerId }
+    }
+    
+    // Monitor sale state to close dialog when operation completes
+    LaunchedEffect(saleViewModel.saleState.isAdding, saleViewModel.saleState.error, saleViewModel.saleState.successMessage) {
+        if (showAddSaleDialog && !saleViewModel.saleState.isAdding) {
+            // Sale operation completed (either success or error)
+            if (saleViewModel.saleState.successMessage != null) {
+                // Success - proceed with clearing the bill
+                val clearedQuantityValue = clearedQuantity.toDoubleOrNull() ?: 0.0
+                onClearBill(clearedQuantityValue, selectedCustomer?.firmName ?: pendingBill.firmName)
+            }
+            // Close the dialog regardless of success or error
+            showAddSaleDialog = false
+            onDismiss()
+        }
+    }
+    
     Dialog(onDismissRequest = { 
-        if (!pendingBillViewModel.pendingBillState.isUpdating) {
+        if (!pendingBillViewModel.pendingBillState.isUpdating && !saleViewModel.saleState.isAdding) {
             onDismiss()
         }
     }) {
@@ -482,7 +504,13 @@ fun ClearBillDialog(
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     )
-                    IconButton(onClick = onDismiss) {
+                    IconButton(
+                        onClick = { 
+                            if (!saleViewModel.saleState.isAdding) {
+                                onDismiss()
+                            }
+                        }
+                    ) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF9CA3AF))
                     }
                 }
@@ -575,6 +603,26 @@ fun ClearBillDialog(
                     modifier = Modifier.padding(start = 4.dp)
                 )
                 
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Customer selection
+                Text(
+                    text = "Select Customer for Sale",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFF9FAFB)
+                )
+                
+                SearchableCustomerDropdown(
+                    customers = customers,
+                    selectedCustomerId = selectedCustomer?.id ?: "",
+                    onCustomerSelected = { customerId ->
+                        selectedCustomer = customers.find { it.id == customerId }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = "Select Customer"
+                )
+                
                 if (errorMessage.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -591,7 +639,13 @@ fun ClearBillDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    TextButton(
+                        onClick = { 
+                            if (!saleViewModel.saleState.isAdding) {
+                                onDismiss()
+                            }
+                        }
+                    ) {
                         Text("Cancel", color = Color(0xFF9CA3AF))
                     }
                     
@@ -609,13 +663,16 @@ fun ClearBillDialog(
                                 quantity > remainingQuantity -> {
                                     errorMessage = "Cannot clear more than remaining quantity (${String.format("%.2f", remainingQuantity)} kg)"
                                 }
+                                selectedCustomer == null -> {
+                                    errorMessage = "Please select a customer"
+                                }
                                 else -> {
                                     showAddSaleDialog = true
                                 }
                             }
                         },
                         enabled = !pendingBillViewModel.pendingBillState.isUpdating && 
-                                clearedQuantity.isNotBlank() && errorMessage.isEmpty(),
+                                clearedQuantity.isNotBlank() && errorMessage.isEmpty() && selectedCustomer != null,
                         colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF10B981)),
                         modifier = Modifier.height(40.dp)
                     ) {
@@ -646,14 +703,14 @@ fun ClearBillDialog(
     if (showAddSaleDialog) {
         val clearedQuantityValue = clearedQuantity.toDoubleOrNull() ?: 0.0
         val preFilledSale = Sale(
-            customerId = pendingBill.customerId,
-            firmName = pendingBill.firmName,
+            customerId = selectedCustomer?.id ?: pendingBill.customerId,
+            firmName = selectedCustomer?.firmName ?: pendingBill.firmName,
             saleDate = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
             billNumber = pendingBill.billNumber,
             portalBatchNumber = pendingBill.portalBatchNumber,
             quantityKg = clearedQuantityValue,
             numberOfBags = (clearedQuantityValue / 25.0).toInt(),
-            deductFromInventory = false, // Don't deduct inventory when clearing
+            deductFromInventory = pendingBill.deductFromInventory, // Use the same setting as the pending bill
             originalRatePerKg = pendingBill.originalRatePerKg,
             portalAmount = pendingBill.portalAmount * (clearedQuantityValue / pendingBill.quantityKg),
             gstAmount = pendingBill.gstAmount * (clearedQuantityValue / pendingBill.quantityKg),
@@ -681,10 +738,8 @@ fun ClearBillDialog(
             storageService = storageService,
             onDismiss = { showAddSaleDialog = false },
             onSave = { sale ->
-                saleViewModel.addSale(sale)
-                onClearBill(clearedQuantityValue)
-                showAddSaleDialog = false
-                onDismiss()
+                saleViewModel.addSale(sale, skipInventoryDeduction = true)
+                // Don't close dialog immediately - wait for sale operation to complete
             },
             preFilledSale = preFilledSale,
             isClearingBill = true

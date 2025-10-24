@@ -410,6 +410,67 @@ class PurchaseRepository(
         }
     }
 
+    /**
+     * Manually refresh purchases data from Firebase
+     */
+    suspend fun refreshPurchases(): Result<List<Purchase>> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            if (userId.isBlank() || appId.isBlank()) {
+                return@withContext Result.success(emptyList())
+            }
+
+            val snapshot = getPurchasesCollection()
+                .get()
+                .get(15, TimeUnit.SECONDS)
+
+            val purchases = snapshot.documents.mapNotNull { doc ->
+                try {
+                    val itemsList = doc.get("items") as? List<Map<String, Any>> ?: emptyList()
+                    val purchaseItems = itemsList.map { itemMap ->
+                        PurchaseItem(
+                            inventoryItemId = itemMap["inventoryItemId"] as? String ?: "",
+                            itemName = itemMap["itemName"] as? String ?: "",
+                            quantity = (itemMap["quantity"] as? Number)?.toDouble() ?: 0.0,
+                            unit = itemMap["unit"] as? String ?: "kg",
+                            pricePerUnit = (itemMap["pricePerUnit"] as? Number)?.toDouble() ?: 0.0,
+                            totalPrice = (itemMap["totalPrice"] as? Number)?.toDouble() ?: 0.0
+                        )
+                    }
+
+                    Purchase(
+                        id = doc.id,
+                        userId = doc.getString("userId") ?: "",
+                        customerId = doc.getString("customerId") ?: "",
+                        firmName = doc.getString("firmName") ?: "",
+                        purchaseDate = doc.getString("purchaseDate") ?: "",
+                        items = purchaseItems,
+                        totalAmount = doc.getDouble("totalAmount") ?: 0.0,
+                        gstRate = doc.getDouble("gstRate") ?: 0.0,
+                        gstAmount = doc.getDouble("gstAmount") ?: 0.0,
+                        grandTotal = doc.getDouble("grandTotal") ?: doc.getDouble("totalAmount") ?: 0.0,
+                        paymentStatus = PaymentStatus.valueOf(
+                            doc.getString("paymentStatus") ?: "PENDING"
+                        ),
+                        amountPaid = doc.getDouble("amountPaid") ?: 0.0,
+                        notes = doc.getString("notes") ?: "",
+                        imageUrl = doc.getString("imageUrl") ?: "",
+                        status = TransactionStatus.valueOf(
+                            doc.getString("status") ?: "APPROVED"
+                        ),
+                        createdAt = doc.getTimestamp("createdAt")
+                    )
+                } catch (e: Exception) {
+                    println("Error parsing purchase document ${doc.id}: ${e.message}")
+                    null
+                }
+            }
+
+            Result.success(purchases)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun listenToPurchases(onPurchasesChanged: (List<Purchase>) -> Unit) {
         if (userId.isBlank() || appId.isBlank()) {
             onPurchasesChanged(emptyList())
@@ -417,7 +478,6 @@ class PurchaseRepository(
         }
 
         getPurchasesCollection()
-            .whereEqualTo("userId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("Error listening to purchases: ${error.message}")
@@ -479,7 +539,6 @@ class PurchaseRepository(
     suspend fun getPurchasesByCustomerId(customerId: String): Result<List<Purchase>> = withContext(Dispatchers.IO) {
         return@withContext try {
             val snapshot = getPurchasesCollection()
-                .whereEqualTo("userId", userId)
                 .whereEqualTo("customerId", customerId)
                 .get()
                 .get(10, TimeUnit.SECONDS)

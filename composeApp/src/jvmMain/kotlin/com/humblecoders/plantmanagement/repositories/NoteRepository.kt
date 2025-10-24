@@ -111,7 +111,6 @@ class NoteRepository(
     suspend fun getAllNotes(): Result<List<Note>> = withContext(Dispatchers.IO) {
         return@withContext try {
             val snapshot = getNotesCollection()
-                .whereEqualTo("userId", userId)
                 .get()
                 .get(10, TimeUnit.SECONDS)
 
@@ -147,7 +146,6 @@ class NoteRepository(
     suspend fun searchNotes(query: String): Result<List<Note>> = withContext(Dispatchers.IO) {
         return@withContext try {
             val snapshot = getNotesCollection()
-                .whereEqualTo("userId", userId)
                 .get()
                 .get(10, TimeUnit.SECONDS)
 

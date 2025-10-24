@@ -28,7 +28,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import java.io.File
 import javax.imageio.ImageIO
-import com.humblecoders.plantmanagement.utils.toComposeImageBitmap
+import com.humblecoders.plantmanagement.ui.components.DocumentUploadComponent
 
 @Composable
 fun AddExpenseDialog(
@@ -42,8 +42,8 @@ fun AddExpenseDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    var selectedImageFile by remember { mutableStateOf<File?>(null) }
-    var showImagePreview by remember { mutableStateOf(false) }
+    var selectedDocuments by remember { mutableStateOf<List<File>>(emptyList()) }
+    var isUploadingDocuments by remember { mutableStateOf(false) }
 
     val expenseState = expenseViewModel.expenseState
 
@@ -261,77 +261,21 @@ fun AddExpenseDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-// Image Upload Section
+                // Document Upload Section
                 Text(
-                    text = "Receipt/Bill Image (Optional)",
+                    text = "Receipt/Bill Documents (Optional)",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFF9FAFB),
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                Row(
+                DocumentUploadComponent(
+                    selectedDocuments = selectedDocuments,
+                    onDocumentsSelected = { files -> selectedDocuments = files },
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            val fileChooser = javax.swing.JFileChooser()
-                            fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
-                                "Image files", "jpg", "jpeg", "png", "gif"
-                            )
-                            val result = fileChooser.showOpenDialog(null)
-                            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
-                                selectedImageFile = fileChooser.selectedFile
-                            }
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFF3B82F6),
-                            backgroundColor = Color(0xFF1E3A8A).copy(alpha = 0.1f)
-                        ),
-                        border = BorderStroke(1.dp, Color(0xFF3B82F6)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Image,
-                            contentDescription = "Upload Image",
-                            modifier = Modifier.size(18.dp),
-                            tint = Color(0xFF3B82F6)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (selectedImageFile != null) "Change Image" else "Select Image",
-                            color = Color(0xFF3B82F6),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    if (selectedImageFile != null) {
-                        Text(
-                            text = selectedImageFile!!.name,
-                            color = Color(0xFF9CA3AF),
-                            fontSize = 12.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        IconButton(onClick = { showImagePreview = true }) {
-                            Icon(
-                                Icons.Default.Visibility,
-                                contentDescription = "Preview",
-                                tint = Color(0xFF3B82F6)
-                            )
-                        }
-
-                        IconButton(onClick = { selectedImageFile = null }) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "Remove",
-                                tint = Color(0xFFEF4444)
-                            )
-                        }
-                    }
-                }
+                    label = "Receipt/Bill Documents (Optional)"
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -368,7 +312,7 @@ fun AddExpenseDialog(
                                 amount = expenseAmount,
                                 date = selectedDate,
                                 notes = notes,
-                                imageFile = selectedImageFile
+                                documentFiles = selectedDocuments
                             )
                         },
                         enabled = amount.isNotBlank() && selectedCategory != null && !expenseState.isProcessing,
@@ -425,50 +369,6 @@ fun AddExpenseDialog(
             }
         }
     }
-    if (showImagePreview && selectedImageFile != null) {
-        Dialog(onDismissRequest = { showImagePreview = false }) {
-            Card(
-                backgroundColor = Color(0xFF1F2937),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    val imageBitmap = remember(selectedImageFile) {
-                        try {
-                            val bufferedImage = ImageIO.read(selectedImageFile)
-                            bufferedImage.toComposeImageBitmap()
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
-                    
-                    if (imageBitmap != null) {
-                        Image(
-                            bitmap = imageBitmap,
-                            contentDescription = "Preview",
-                            modifier = Modifier.size(400.dp)
-                        )
-                    } else {
-                        Text("Could not load image", color = Color(0xFFEF4444))
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { showImagePreview = false },
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFFEF4444)
-                        )
-                    ) {
-                        Text("Close", color = Color.White)
-                    }
-                }
-            }
-        }
-    }
-
 }
 
 

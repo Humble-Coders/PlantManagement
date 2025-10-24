@@ -315,17 +315,20 @@ fun NoteCard(
                     )
                 }
                 
-                if (isAdmin) {
-                    Row {
-                        IconButton(
-                            onClick = { onToggleCompletion(!note.isCompleted) }
-                        ) {
-                            Icon(
-                                if (note.isCompleted) Icons.Default.Undo else Icons.Default.CheckCircle,
-                                contentDescription = if (note.isCompleted) "Mark Incomplete" else "Mark Complete",
-                                tint = if (note.isCompleted) Color(0xFFF59E0B) else Color(0xFF10B981)
-                            )
-                        }
+                Row {
+                    // Completion toggle is available for all authenticated users
+                    IconButton(
+                        onClick = { onToggleCompletion(!note.isCompleted) }
+                    ) {
+                        Icon(
+                            if (note.isCompleted) Icons.Default.Undo else Icons.Default.CheckCircle,
+                            contentDescription = if (note.isCompleted) "Mark Incomplete" else "Mark Complete",
+                            tint = if (note.isCompleted) Color(0xFFF59E0B) else Color(0xFF10B981)
+                        )
+                    }
+                    
+                    // Edit and Delete are only available for admin users
+                    if (isAdmin) {
                         IconButton(onClick = onEdit) {
                             Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF10B981))
                         }

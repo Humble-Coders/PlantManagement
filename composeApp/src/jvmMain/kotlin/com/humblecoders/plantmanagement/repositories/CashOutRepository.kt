@@ -15,6 +15,8 @@ class CashOutRepository(
     private fun getCashOutCollection() = firestore.collection("cash_out")
     private fun getPurchasesCollection() = firestore.collection("purchases")
     private fun getEntitiesCollection() = firestore.collection("customers")
+    private fun getUserBalancesCollection() = firestore.collection("user_balances")
+    private fun getUserCashOutTransactionsCollection() = firestore.collection("user_cash_out_transactions")
 
     /**
      * Process cash out transaction with Firebase transaction for atomicity
@@ -124,12 +126,10 @@ class CashOutRepository(
      */
     suspend fun getPendingPurchases(customerId: String? = null): List<Purchase> = withContext(Dispatchers.IO) {
         return@withContext try {
-            var query = getPurchasesCollection()
-                .whereEqualTo("userId", userId)
-            
-            // Filter by customer if specified
-            if (!customerId.isNullOrBlank()) {
-                query = query.whereEqualTo("customerId", customerId)
+            val query = if (!customerId.isNullOrBlank()) {
+                getPurchasesCollection().whereEqualTo("customerId", customerId)
+            } else {
+                getPurchasesCollection()
             }
             
             val snapshot = query.get().get(15, TimeUnit.SECONDS)
@@ -193,6 +193,94 @@ class CashOutRepository(
     }
     
     /**
+     * Process cash out transaction using shared user balance
+     * This is separate from company cash out transactions
+     */
+    suspend fun processUserCashOutTransaction(
+        amount: Double,
+        notes: String = ""
+    ): Result<String> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val transactionDocRef = getUserCashOutTransactionsCollection().document()
+            val sharedBalanceRef = getUserBalancesCollection().document("shared_balance")
+            
+            firestore.runTransaction { transaction ->
+                // Get shared balance
+                val sharedBalanceDoc = transaction.get(sharedBalanceRef).get()
+                
+                if (!sharedBalanceDoc.exists()) {
+                    throw Exception("Shared user balance not found")
+                }
+                
+                val currentBalance = sharedBalanceDoc.getDouble("currentBalance") ?: 0.0
+                
+                // Allow negative balances - remove the insufficient balance check
+                
+                val newBalance = currentBalance - amount
+                
+                // Update shared balance
+                transaction.update(sharedBalanceRef, mapOf(
+                    "currentBalance" to newBalance,
+                    "updatedAt" to com.google.cloud.Timestamp.now()
+                ))
+                
+                // Create transaction record
+                val transactionData = mapOf<String, Any>(
+                    "userId" to userId,
+                    "userEmail" to "", // Will be filled from user data
+                    "userName" to "", // Will be filled from user data
+                    "amount" to amount,
+                    "notes" to notes,
+                    "previousBalance" to currentBalance,
+                    "newBalance" to newBalance,
+                    "createdAt" to com.google.cloud.Timestamp.now()
+                )
+                
+                transaction.set(transactionDocRef, transactionData)
+                null
+            }.get(20, TimeUnit.SECONDS)
+            
+            Result.success(transactionDocRef.id)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Get shared user balance
+     */
+    suspend fun getSharedUserBalance(): Result<UserBalance> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val doc = getUserBalancesCollection()
+                .document("shared_balance")
+                .get()
+                .get(10, TimeUnit.SECONDS)
+            
+            if (!doc.exists()) {
+                // Create initial shared balance if doesn't exist
+                val initialBalance = UserBalance(
+                    id = "shared_balance",
+                    currentBalance = 0.0,
+                    createdAt = com.google.cloud.Timestamp.now(),
+                    updatedAt = com.google.cloud.Timestamp.now()
+                )
+                return@withContext Result.success(initialBalance)
+            }
+            
+            val balance = UserBalance(
+                id = doc.id,
+                currentBalance = doc.getDouble("currentBalance") ?: 0.0,
+                createdAt = doc.getTimestamp("createdAt"),
+                updatedAt = doc.getTimestamp("updatedAt")
+            )
+            
+            Result.success(balance)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Listen to cash out history in real-time
      */
     fun listenToCashOutHistory(onCashOutsChanged: (List<CashOut>) -> Unit) {
@@ -202,7 +290,6 @@ class CashOutRepository(
         }
 
         getCashOutCollection()
-            .whereEqualTo("userId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("Error listening to cash outs: ${error.message}")
@@ -246,6 +333,88 @@ class CashOutRepository(
                         }
                     }
                     onCashOutsChanged(cashOuts)
+                }
+            }
+    }
+
+    /**
+     * Listen to user cash out transactions
+     */
+    fun listenToUserCashOutTransactions(onTransactionsChanged: (List<UserCashOutTransaction>) -> Unit) {
+        if (userId.isBlank()) {
+            onTransactionsChanged(emptyList())
+            return
+        }
+
+        getUserCashOutTransactionsCollection()
+            .whereEqualTo("userId", userId)
+            .orderBy("createdAt", com.google.cloud.firestore.Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("Error listening to user cash out transactions: ${error.message}")
+                    onTransactionsChanged(emptyList())
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null) {
+                    val transactions = snapshot.documents.mapNotNull { doc ->
+                        try {
+                            UserCashOutTransaction(
+                                id = doc.id,
+                                userId = doc.getString("userId") ?: "",
+                                userEmail = doc.getString("userEmail") ?: "",
+                                userName = doc.getString("userName") ?: "",
+                                amount = doc.getDouble("amount") ?: 0.0,
+                                notes = doc.getString("notes") ?: "",
+                                previousBalance = doc.getDouble("previousBalance") ?: 0.0,
+                                newBalance = doc.getDouble("newBalance") ?: 0.0,
+                                createdAt = doc.getTimestamp("createdAt")
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    onTransactionsChanged(transactions)
+                }
+            }
+    }
+
+    /**
+     * Listen to user balance changes
+     */
+    fun listenToUserBalance(onBalanceChanged: (UserBalance?) -> Unit) {
+        if (userId.isBlank()) {
+            onBalanceChanged(null)
+            return
+        }
+
+        getUserBalancesCollection()
+            .whereEqualTo("userId", userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("Error listening to user balance: ${error.message}")
+                    onBalanceChanged(null)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && !snapshot.isEmpty) {
+                    val doc = snapshot.documents.first()
+                    val balance = UserBalance(
+                        id = doc.id,
+                        currentBalance = doc.getDouble("currentBalance") ?: 0.0,
+                        createdAt = doc.getTimestamp("createdAt"),
+                        updatedAt = doc.getTimestamp("updatedAt")
+                    )
+                    onBalanceChanged(balance)
+                } else {
+                    // Create initial balance if doesn't exist
+                    val initialBalance = UserBalance(
+                        id = "shared_balance",
+                        currentBalance = 0.0,
+                        createdAt = com.google.cloud.Timestamp.now(),
+                        updatedAt = com.google.cloud.Timestamp.now()
+                    )
+                    onBalanceChanged(initialBalance)
                 }
             }
     }

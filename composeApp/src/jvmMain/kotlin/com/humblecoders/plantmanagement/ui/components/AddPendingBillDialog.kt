@@ -22,6 +22,7 @@ import androidx.compose.ui.window.Dialog
 import com.humblecoders.plantmanagement.data.*
 import com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel
 import com.humblecoders.plantmanagement.ui.components.DatePicker
+import com.humblecoders.plantmanagement.ui.components.SearchableCustomerDropdown
 import com.humblecoders.plantmanagement.services.FirebaseStorageService
 import java.io.File
 import java.time.LocalDate
@@ -187,45 +188,13 @@ fun AddPendingBillDialog(
                 ) {
                     // Customer Selection
                     item {
-                        Text("Customer", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    }
-
-                    item {
-                        var expanded by remember { mutableStateOf(false) }
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = { expanded = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = Color(0xFFF9FAFB),
-                                    backgroundColor = Color(0xFF111827)
-                                )
-                            ) {
-                                Text(
-                                    text = if (selectedEntityId.isBlank()) "Select Customer"
-                                    else customers.find { it.id == selectedEntityId }?.firmName ?: "Select Customer",
-                                    modifier = Modifier.weight(1f),
-                                    color = Color(0xFFF9FAFB)
-                                )
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF9CA3AF))
-                            }
-
-                            DropdownMenu(
-                                expanded = expanded,
-                                onDismissRequest = { expanded = false }
-                            ) {
-                                customers.forEach { customer ->
-                                    DropdownMenuItem(
-                                        onClick = {
-                                            selectedEntityId = customer.id
-                                            expanded = false
-                                        }
-                                    ) {
-                                        Text(customer.firmName, color = Color.Black)
-                                    }
-                                }
-                            }
-                        }
+                        SearchableCustomerDropdown(
+                            customers = customers,
+                            selectedCustomerId = selectedEntityId,
+                            onCustomerSelected = { selectedEntityId = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = "Select Customer"
+                        )
                     }
 
                     // Basic Details
@@ -432,7 +401,7 @@ fun AddPendingBillDialog(
                             OutlinedTextField(
                                 value = discountedRatePerKg,
                                 onValueChange = { discountedRatePerKg = it },
-                                label = { Text("Discounted Rate per Kg (₹)", color = Color(0xFF9CA3AF)) },
+                                label = { Text("Offered Rate per Kg (₹)", color = Color(0xFF9CA3AF)) },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = TextFieldDefaults.outlinedTextFieldColors(
                                     textColor = Color(0xFFF9FAFB),

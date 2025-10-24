@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.sp
 import com.humblecoders.plantmanagement.data.*
 import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
 import com.humblecoders.plantmanagement.ui.components.DatePicker
+import com.humblecoders.plantmanagement.ui.components.SearchableCustomerDropdown
+import com.humblecoders.plantmanagement.ui.components.DocumentUploadComponent
 import com.humblecoders.plantmanagement.services.FirebaseStorageService
 import java.io.File
 import java.time.LocalDate
@@ -99,9 +101,9 @@ fun AddSaleDialog(
 
     var notes by remember { mutableStateOf(preFilledSale?.notes ?: "") }
 
-    // Image upload state
-    var selectedImages by remember { mutableStateOf<List<File>>(emptyList()) }
-    var isUploadingImages by remember { mutableStateOf(false) }
+    // Document upload state
+    var selectedDocuments by remember { mutableStateOf<List<File>>(emptyList()) }
+    var isUploadingDocuments by remember { mutableStateOf(false) }
 
     // Inventory validation state
     var inventoryError by remember { mutableStateOf("") }
@@ -133,17 +135,17 @@ fun AddSaleDialog(
     // Get fortified rice inventory
     LaunchedEffect(Unit) {
         val fortifiedRiceItem = inventoryViewModel.inventoryState.items.find {
-            it.name.lowercase().contains("fortified rice") ||
-                    it.name.lowercase().contains("frk")
+            it.name.lowercase().contains("fortified rice")
         }
         availableInventory = fortifiedRiceItem?.quantity ?: 0.0
     }
 
-    // Inventory validation
+    // Inventory validation (skip when clearing bills since inventory was already deducted)
     LaunchedEffect(quantityKg, extraQuantityKg, deductFromInventory, discountType) {
         inventoryError = ""
 
-        if (deductFromInventory) {
+        // Skip inventory validation when clearing bills
+        if (!isClearingBill && deductFromInventory) {
             val qty = quantityKg.toDoubleOrNull() ?: 0.0
             val extraQty = extraQuantityKg.toDoubleOrNull() ?: 0.0
 
@@ -221,36 +223,16 @@ fun AddSaleDialog(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
-                    // Customer Selection
-                    item {
-                        var entityExpanded by remember { mutableStateOf(false) }
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = { entityExpanded = true },
+                    // Customer Selection (only show when not clearing a bill)
+                    if (!isClearingBill) {
+                        item {
+                            SearchableCustomerDropdown(
+                                customers = customers,
+                                selectedCustomerId = selectedEntityId,
+                                onCustomerSelected = { selectedEntityId = it },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-                            ) {
-                                Text(
-                                    text = if (selectedEntityId.isBlank()) "Select Customer"
-                                    else customers.find { it.id == selectedEntityId }?.firmName
-                                        ?: "Select Customer",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                            }
-
-                            DropdownMenu(
-                                expanded = entityExpanded,
-                                onDismissRequest = { entityExpanded = false }) {
-                                customers.forEach { entity ->
-                                    DropdownMenuItem(onClick = {
-                                        selectedEntityId = entity.id
-                                        entityExpanded = false
-                                    }) {
-                                        Text(entity.firmName)
-                                    }
-                                }
-                            }
+                                placeholder = "Select Customer"
+                            )
                         }
                     }
 
@@ -786,16 +768,17 @@ fun AddSaleDialog(
                         }
                     }
 
-                    // Image Upload Section
+                    // Document Upload Section
                     item {
                         Divider(color = Color(0xFF374151))
                     }
 
                     item {
-                        ImageUploadComponent(
-                            selectedImages = selectedImages,
-                            onImagesSelected = { selectedImages = it },
-                            modifier = Modifier.fillMaxWidth()
+                        DocumentUploadComponent(
+                            selectedDocuments = selectedDocuments,
+                            onDocumentsSelected = { selectedDocuments = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = "Add Document (Images, PDFs, etc.)"
                         )
                     }
 
@@ -866,30 +849,30 @@ fun AddSaleDialog(
 
                     Button(
                         onClick = {
-                            // Check inventory validation before saving
-                            if (inventoryError.isNotEmpty()) {
+                            // Check inventory validation before saving (skip when clearing bills)
+                            if (!isClearingBill && inventoryError.isNotEmpty()) {
                                 return@Button // Don't save if there's an inventory error
                             }
 
-                            // Start image upload process
-                            if (selectedImages.isNotEmpty()) {
-                                isUploadingImages = true
+                            // Start document upload process
+                            if (selectedDocuments.isNotEmpty()) {
+                                isUploadingDocuments = true
 
-                                // Upload images in background - we'll handle this with a coroutine scope
+                                // Upload documents in background - we'll handle this with a coroutine scope
                                 GlobalScope.launch {
-                                    val imageUrls = mutableListOf<String>()
+                                    val documentUrls = mutableListOf<String>()
 
-                                    for (imageFile in selectedImages) {
+                                    for (documentFile in selectedDocuments) {
                                         val uploadResult =
-                                            storageService.uploadImage(imageFile, "sales")
+                                            storageService.uploadDocument(documentFile, "sales")
                                         if (uploadResult.isSuccess) {
-                                            imageUrls.add(uploadResult.getOrNull() ?: "")
+                                            documentUrls.add(uploadResult.getOrNull() ?: "")
                                         }
                                     }
 
-                                    isUploadingImages = false
+                                    isUploadingDocuments = false
 
-                                    // Create and save sale with uploaded image URLs
+                                    // Create and save sale with uploaded document URLs
                                     val selectedEntity =
                                         customers.find { it.id == selectedEntityId }
                                     val qty = quantityKg.toDoubleOrNull() ?: 0.0
@@ -914,6 +897,7 @@ fun AddSaleDialog(
                                         Sale(
                                             customerId = selectedEntityId,
                                             firmName = selectedEntity?.firmName ?: "",
+                                            customerCity = selectedEntity?.city ?: "",
                                             saleDate = saleDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                                             billNumber = billNumber,
                                             portalBatchNumber = portalBatchNumber,
@@ -942,7 +926,7 @@ fun AddSaleDialog(
                                             fareAmount = fareAmount.toDoubleOrNull() ?: 0.0,
                                             farePaidBy = farePaidBy,
                                             notes = notes,
-                                            imageUrls = imageUrls
+                                            imageUrls = documentUrls
                                         )
                                     )
                                 }
@@ -971,6 +955,7 @@ fun AddSaleDialog(
                                     Sale(
                                         customerId = selectedEntityId,
                                         firmName = selectedEntity?.firmName ?: "",
+                                        customerCity = selectedEntity?.city ?: "",
                                         saleDate = saleDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                                         billNumber = billNumber,
                                         portalBatchNumber = portalBatchNumber,
@@ -1005,15 +990,15 @@ fun AddSaleDialog(
                         },
                         enabled = selectedEntityId.isNotBlank() && billNumber.isNotBlank() &&
                                 portalBatchNumber.isNotBlank() && quantityKg.isNotBlank() &&
-                                originalRatePerKg.isNotBlank() && inventoryError.isEmpty() && !isUploadingImages,
+                                originalRatePerKg.isNotBlank() && (isClearingBill || inventoryError.isEmpty()) && !isUploadingDocuments,
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (inventoryError.isNotEmpty() || isUploadingImages) Color(
+                            backgroundColor = if ((!isClearingBill && inventoryError.isNotEmpty()) || isUploadingDocuments) Color(
                                 0xFF6B7280
                             ) else Color(0xFF10B981),
                             disabledBackgroundColor = Color(0xFF9CA3AF)
                         )
                     ) {
-                        if (isUploadingImages) {
+                        if (isUploadingDocuments) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
@@ -1021,7 +1006,7 @@ fun AddSaleDialog(
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Uploading Images...", color = Color.White)
+                                Text("Uploading Documents...", color = Color.White)
                             }
                         } else {
                             Text("Add Sale", color = Color.White)

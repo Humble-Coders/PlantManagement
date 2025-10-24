@@ -305,9 +305,35 @@ class ExpenseRepository(
             }
         }
     }
+    
+    suspend fun deleteExpenseWithDocuments(expenseId: String, documentUrls: List<String>): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val expenseDoc = expensesCollection.document(expenseId).get().get()
+                if (!expenseDoc.exists()) {
+                    return@withContext Result.failure(
+                        Exception("Expense with ID $expenseId not found")
+                    )
+                }
+
+                // Delete documents from storage if they exist
+                documentUrls.forEach { url ->
+                    if (url.isNotBlank()) {
+                        storageService.deleteImage(url) // This method handles both images and documents
+                    }
+                }
+
+                // Delete expense document
+                expensesCollection.document(expenseId).delete().get()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(
+                    Exception("Failed to delete expense: ${e.message}", e)
+                )
+            }
+        }
+    }
 }
-
-
 
 data class ExpenseSummary(
     val totalExpenses: Double = 0.0

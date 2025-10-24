@@ -9,13 +9,14 @@ import com.google.cloud.Timestamp
 data class CashReport(
     val id: String = "",
     val userId: String = "",
+    val accountantTransaction: Boolean = false, // True if transaction was performed by accountant (USER role)
     val transactionType: CashReportType = CashReportType.CASH_IN,
     val categoryId: String = "",
     val amount: Double = 0.0,
     val date: Timestamp? = null,
     val notes: String = "",
     val createdAt: Timestamp? = null,
-    val imageUrl: String = ""
+    val documentUrls: List<String> = emptyList()
 )
 
 /**

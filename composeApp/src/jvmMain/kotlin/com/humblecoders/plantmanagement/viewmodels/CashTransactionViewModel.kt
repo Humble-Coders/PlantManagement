@@ -213,6 +213,30 @@ class CashTransactionViewModel(
         }
     }
     
+    /**
+     * Manually refresh cash transactions data
+     */
+    fun refreshCashTransactions(customerId: String? = null, transactionType: CashTransactionType? = null) {
+        viewModelScope.launch {
+            cashTransactionState = cashTransactionState.copy(isLoading = true, error = null)
+            
+            val result = cashTransactionRepository.refreshCashTransactions(customerId, transactionType)
+            
+            cashTransactionState = if (result.isSuccess) {
+                cashTransactionState.copy(
+                    isLoading = false,
+                    transactions = result.getOrNull() ?: emptyList(),
+                    error = null
+                )
+            } else {
+                cashTransactionState.copy(
+                    isLoading = false,
+                    error = result.exceptionOrNull()?.message ?: "Failed to refresh cash transactions"
+                )
+            }
+        }
+    }
+    
     fun clearMessages() {
         cashTransactionState = cashTransactionState.copy(
             error = null,

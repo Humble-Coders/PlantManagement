@@ -114,7 +114,7 @@ class SaleViewModel(
     /**
      * Add a new sale
      */
-    fun addSale(sale: Sale) {
+    fun addSale(sale: Sale, skipInventoryDeduction: Boolean = false) {
         // Validations
         if (sale.customerId.isBlank()) {
             saleState = saleState.copy(error = "Please select a customer")
@@ -142,7 +142,7 @@ class SaleViewModel(
         }
 
         if (sale.discountType == DiscountType.DISCOUNT_PREMIUM && sale.discountedRatePerKg <= 0) {
-            saleState = saleState.copy(error = "Discounted rate must be greater than 0")
+            saleState = saleState.copy(error = "Offered rate must be greater than 0")
             return
         }
 
@@ -154,7 +154,7 @@ class SaleViewModel(
         viewModelScope.launch {
             saleState = saleState.copy(isAdding = true, isLoading = true, error = null)
 
-            val result = saleRepository.addSale(sale)
+            val result = saleRepository.addSale(sale, skipInventoryDeduction)
 
             saleState = if (result.isSuccess) {
                 saleState.copy(
@@ -322,7 +322,8 @@ class SaleViewModel(
             val textMatch = sale.firmName.lowercase().contains(query) ||
                     sale.billNumber.lowercase().contains(query) ||
                     sale.portalBatchNumber.lowercase().contains(query) ||
-                    sale.saleDate.lowercase().contains(query)
+                    sale.saleDate.lowercase().contains(query) ||
+                    sale.customerCity.lowercase().contains(query)
 
             val dateMatch = if (saleState.filterDateFrom.isNotBlank() || saleState.filterDateTo.isNotBlank()) {
                 val saleDate = try {
@@ -395,6 +396,30 @@ class SaleViewModel(
         }
 
         return sorted
+    }
+
+    /**
+     * Manually refresh sales data
+     */
+    fun refreshSales() {
+        viewModelScope.launch {
+            saleState = saleState.copy(isLoading = true, error = null)
+            
+            val result = saleRepository.refreshSales()
+            
+            saleState = if (result.isSuccess) {
+                saleState.copy(
+                    isLoading = false,
+                    sales = result.getOrNull() ?: emptyList(),
+                    error = null
+                )
+            } else {
+                saleState.copy(
+                    isLoading = false,
+                    error = result.exceptionOrNull()?.message ?: "Failed to refresh sales"
+                )
+            }
+        }
     }
 
     /**

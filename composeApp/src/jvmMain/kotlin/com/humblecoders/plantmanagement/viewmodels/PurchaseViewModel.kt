@@ -276,6 +276,30 @@ class PurchaseViewModel(
     }
 
     /**
+     * Manually refresh purchases data
+     */
+    fun refreshPurchases() {
+        viewModelScope.launch {
+            purchaseState = purchaseState.copy(isLoading = true, error = null)
+            
+            val result = purchaseRepository.refreshPurchases()
+            
+            purchaseState = if (result.isSuccess) {
+                purchaseState.copy(
+                    isLoading = false,
+                    purchases = result.getOrNull() ?: emptyList(),
+                    error = null
+                )
+            } else {
+                purchaseState.copy(
+                    isLoading = false,
+                    error = result.exceptionOrNull()?.message ?: "Failed to refresh purchases"
+                )
+            }
+        }
+    }
+
+    /**
      * Get purchases by customer ID
      */
     fun getPurchasesByCustomerId(customerId: String) {

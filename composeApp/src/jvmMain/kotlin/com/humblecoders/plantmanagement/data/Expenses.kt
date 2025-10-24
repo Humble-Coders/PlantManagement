@@ -11,8 +11,7 @@ data class Expense(
     val date: Timestamp? = null,
     val notes: String = "",
     val createdAt: Timestamp? = null,
-    val imageUrl: String = ""  // ADD THIS LINE
-
+    val documentUrls: List<String> = emptyList()
 )
 
 

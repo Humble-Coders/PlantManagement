@@ -39,6 +39,8 @@ enum class MenuItem {
     REMINDERS,
     NOTES,
     REPORTS,
+    USER_BALANCE_MANAGEMENT,
+    USER_CASH_OUT,
     PROFILE
 }
 
@@ -55,6 +57,7 @@ fun MainScreen(
     saleViewModel: com.humblecoders.plantmanagement.viewmodels.SaleViewModel,
     pendingBillViewModel: com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel,
     noteViewModel: com.humblecoders.plantmanagement.viewmodels.NoteViewModel,
+    userBalanceViewModel: com.humblecoders.plantmanagement.viewmodels.UserBalanceViewModel,
     storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
@@ -69,7 +72,10 @@ fun MainScreen(
     ) {
         SidebarMenu(
             selectedItem = selectedMenuItem,
-            onItemSelected = { selectedMenuItem = it },
+            onItemSelected = { 
+                selectedMenuItem = it
+                selectedCustomer = null // Clear customer detail screen when navigating to other menu items
+            },
             currentUserRole = user?.role?.name ?: "USER"
         )
 
@@ -106,11 +112,13 @@ fun MainScreen(
                         MenuItem.PURCHASE -> PurchaseScreen(purchaseViewModel, entityViewModel, inventoryViewModel, user?.role)
                         MenuItem.SALE -> SaleScreen(saleViewModel, entityViewModel, inventoryViewModel, storageService, user?.role)
                         MenuItem.PENDING_BILLS -> PendingBillsScreen(pendingBillViewModel, entityViewModel, inventoryViewModel, saleViewModel, storageService, user?.role)
-                        MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel) { }
-                        MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel) { }
+                        MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel, userBalanceViewModel, user?.role) { }
+                        MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel, user?.role) { }
                         MenuItem.LEDGER -> LedgerScreen(entityViewModel, saleViewModel, purchaseViewModel, cashTransactionViewModel)
                         MenuItem.REMINDERS -> RemindersScreen(saleViewModel, entityViewModel, inventoryViewModel, storageService, user?.role)
                         MenuItem.NOTES -> NotesScreen(noteViewModel, user?.role)
+                        MenuItem.USER_BALANCE_MANAGEMENT -> UserBalanceManagementScreen(userBalanceViewModel) { }
+                        MenuItem.USER_CASH_OUT -> UserCashOutScreen(userBalanceViewModel) { }
                         MenuItem.PROFILE -> ProfileContent(authViewModel)
                         else -> PlaceholderContent(selectedMenuItem.name)
                     }
@@ -140,6 +148,8 @@ fun SidebarMenu(
         MenuItemData(MenuItem.REMINDERS, "Reminders", Icons.Default.Notifications),
         MenuItemData(MenuItem.NOTES, "Notes", Icons.Default.Create),
         MenuItemData(MenuItem.REPORTS, "Reports", Icons.Default.ThumbUp),
+        MenuItemData(MenuItem.USER_BALANCE_MANAGEMENT, "User Balance Management", Icons.Default.AccountBalanceWallet),
+        MenuItemData(MenuItem.USER_CASH_OUT, "My Cash Out", Icons.Default.MoneyOff),
     )
 
     Column(
@@ -172,11 +182,20 @@ fun SidebarMenu(
         Spacer(modifier = Modifier.height(8.dp))
 
         menuItems.forEach { menuItem ->
-            MenuItemRow(
-                menuItemData = menuItem,
-                isSelected = selectedItem == menuItem.item,
-                onClick = { onItemSelected(menuItem.item) }
-            )
+            // Role-based filtering
+            val shouldShow = when (menuItem.item) {
+                MenuItem.USER_BALANCE_MANAGEMENT -> false // Removed from admin menu
+                MenuItem.USER_CASH_OUT -> false // Removed from user menu
+                else -> true
+            }
+            
+            if (shouldShow) {
+                MenuItemRow(
+                    menuItemData = menuItem,
+                    isSelected = selectedItem == menuItem.item,
+                    onClick = { onItemSelected(menuItem.item) }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.weight(1f))

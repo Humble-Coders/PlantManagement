@@ -223,10 +223,10 @@ class CashInRepository(
      */
     suspend fun getPendingSalesForRevenue(customerId: String? = null): List<Sale> = withContext(Dispatchers.IO) {
         return@withContext try {
-            var query = getSalesCollection().whereEqualTo("userId", userId)
-
-            if (!customerId.isNullOrBlank()) {
-                query = query.whereEqualTo("customerId", customerId)
+            val query = if (!customerId.isNullOrBlank()) {
+                getSalesCollection().whereEqualTo("customerId", customerId)
+            } else {
+                getSalesCollection()
             }
 
             val snapshot = query.get().get(15, TimeUnit.SECONDS)
@@ -292,7 +292,6 @@ class CashInRepository(
     ): List<Sale> = withContext(Dispatchers.IO) {
         return@withContext try {
             val query = getSalesCollection()
-                .whereEqualTo("userId", userId)
                 .whereEqualTo("customerId", customerId)
 
             val snapshot = query.get().get(15, TimeUnit.SECONDS)
@@ -368,7 +367,6 @@ class CashInRepository(
         }
 
         getCashInRevenueCollection()
-            .whereEqualTo("userId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("Error listening to cash in revenue: ${error.message}")
@@ -424,7 +422,6 @@ class CashInRepository(
         }
 
         getCashInOutDifferenceCollection()
-            .whereEqualTo("userId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("Error listening to cash in/out difference: ${error.message}")

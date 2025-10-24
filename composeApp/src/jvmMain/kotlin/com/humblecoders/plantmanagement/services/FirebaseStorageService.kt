@@ -24,6 +24,10 @@ class FirebaseStorageService(credentials: GoogleCredentials? = null) {
     private val bucketName = "plantmanagement-b1db8.firebasestorage.app"
     
     suspend fun uploadImage(file: File, folder: String = "purchases"): Result<String> = withContext(Dispatchers.IO) {
+        return@withContext uploadDocument(file, folder)
+    }
+    
+    suspend fun uploadDocument(file: File, folder: String = "documents"): Result<String> = withContext(Dispatchers.IO) {
         return@withContext try {
             // Generate unique file name with sanitized filename
             val sanitizedFileName = file.name
@@ -58,11 +62,11 @@ class FirebaseStorageService(credentials: GoogleCredentials? = null) {
             
             val downloadUrl = "https://firebasestorage.googleapis.com/v0/b/$bucketName/o/$encodedPath?alt=media"
             
-            println("Image uploaded successfully: $downloadUrl")
+            println("Document uploaded successfully: $downloadUrl")
             
             Result.success(downloadUrl)
         } catch (e: Exception) {
-            println("Error uploading image: ${e.message}")
+            println("Error uploading document: ${e.message}")
             e.printStackTrace()
             Result.failure(e)
         }
@@ -102,6 +106,10 @@ class FirebaseStorageService(credentials: GoogleCredentials? = null) {
             "gif" -> "image/gif"
             "webp" -> "image/webp"
             "bmp" -> "image/bmp"
+            "pdf" -> "application/pdf"
+            "doc" -> "application/msword"
+            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "txt" -> "text/plain"
             else -> "application/octet-stream"
         }
     }

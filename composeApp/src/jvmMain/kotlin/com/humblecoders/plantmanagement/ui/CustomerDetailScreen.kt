@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -56,6 +59,10 @@ import com.humblecoders.plantmanagement.ui.components.DatePicker
 import com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import com.humblecoders.plantmanagement.viewmodels.SortDirection
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -81,32 +88,56 @@ fun CustomerDetailScreen(
     var filterDateFrom by remember { mutableStateOf("") }
     var filterDateTo by remember { mutableStateOf("") }
     
+    // Loading state management
+    var isRefreshing by remember { mutableStateOf(false) }
+    var lastRefreshTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    
     // Calculate financial summaries
     val financialSummary = remember(customer.id, saleState.sales, purchaseState.purchases, cashTransactionState.transactions) {
         calculateFinancialSummary(customer.id, saleState.sales, purchaseState.purchases, cashTransactionState.transactions)
     }
     
-    // Load data for this customer
-    LaunchedEffect(customer.id) {
-        saleViewModel.getSalesByCustomerId(customer.id)
-        purchaseViewModel.getPurchasesByCustomerId(customer.id)
-        cashTransactionViewModel.getCashTransactionsByCustomerId(customer.id)
+    // Refresh function with proper async handling and buffering
+    val refreshData = {
+        if (!isRefreshing) {
+            isRefreshing = true
+            lastRefreshTime = System.currentTimeMillis()
+            
+            // Use coroutines for proper async handling
+            CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    // Refresh all data asynchronously
+                    saleViewModel.refreshSales()
+                    purchaseViewModel.refreshPurchases()
+                    cashTransactionViewModel.refreshCashTransactions()
+                    
+                    // Add minimum delay for better UX (buffering)
+                    delay(500)
+                } catch (e: Exception) {
+                    println("Error during refresh: ${e.message}")
+                } finally {
+                    isRefreshing = false
+                }
+            }
+        }
     }
     
-    // Refresh data when transaction type changes
-    LaunchedEffect(selectedTransactionType) {
-        // Reload data to ensure we have the latest transactions
-        saleViewModel.getSalesByCustomerId(customer.id)
-        purchaseViewModel.getPurchasesByCustomerId(customer.id)
-        cashTransactionViewModel.getCashTransactionsByCustomerId(customer.id)
+    // Check if data is stale (older than 2 minutes)
+    val isDataStale = remember(lastRefreshTime) {
+        System.currentTimeMillis() - lastRefreshTime > 120000 // 2 minutes
     }
     
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF111827))
-            .padding(16.dp)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
         // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -134,20 +165,26 @@ fun CustomerDetailScreen(
             
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = { 
-                        // Refresh all data
-                        saleViewModel.getSalesByCustomerId(customer.id)
-                        purchaseViewModel.getPurchasesByCustomerId(customer.id)
-                        cashTransactionViewModel.getCashTransactionsByCustomerId(customer.id)
-                    },
+                    onClick = refreshData,
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF374151),
+                        backgroundColor = if (isDataStale) Color(0xFFF59E0B) else Color(0xFF374151),
                         contentColor = Color.White
-                    )
+                    ),
+                    enabled = !isRefreshing && !saleState.isLoading && !purchaseState.isLoading && !cashTransactionState.isLoading
                 ) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Refresh")
+                    if (isRefreshing || saleState.isLoading || purchaseState.isLoading || cashTransactionState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Refreshing...")
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isDataStale) "Refresh (Stale)" else "Refresh")
+                    }
                 }
                 
                 Button(
@@ -229,18 +266,47 @@ fun CustomerDetailScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
         
+        // Data freshness indicator
+        if (isDataStale && !isRefreshing) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = Color(0xFFF59E0B).copy(alpha = 0.1f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Stale Data",
+                        tint = Color(0xFFF59E0B),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Data may be outdated. Click refresh to get latest information.",
+                        color = Color(0xFFF59E0B),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+        
         // Transaction Records
         TransactionRecordsSection(
             transactionType = selectedTransactionType,
             sales = saleState.sales.filter { it.customerId == customer.id },
             purchases = purchaseState.purchases.filter { it.customerId == customer.id },
             cashTransactions = cashTransactionState.transactions.filter { it.customerId == customer.id },
-            isLoading = saleState.isLoading || purchaseState.isLoading || cashTransactionState.isLoading,
+            isLoading = saleState.isLoading || purchaseState.isLoading || cashTransactionState.isLoading || isRefreshing,
             sortBy = sortBy,
             sortDirection = sortDirection,
             filterDateFrom = filterDateFrom,
             filterDateTo = filterDateTo
         )
+        }
     }
 }
 
@@ -307,37 +373,86 @@ fun InfoRow(label: String, value: String) {
 
 @Composable
 fun FinancialSummaryCards(financialSummary: FinancialSummary) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        FinancialCard(
-            title = "Pending Portal Amount",
-            amount = financialSummary.pendingPortalAmount,
-            color = Color(0xFFF59E0B),
-            modifier = Modifier.weight(1f)
-        )
+        // First row - 4 cards
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            FinancialCard(
+                title = "Pending Portal Amount",
+                amount = financialSummary.pendingPortalAmount,
+                color = Color(0xFF10B981), // Green
+                modifier = Modifier.weight(1f)
+            )
+            
+            FinancialCard(
+                title = "Pending Purchase Amount",
+                amount = financialSummary.pendingPurchaseAmount,
+                color = Color(0xFFEF4444), // Red
+                modifier = Modifier.weight(1f)
+            )
+            
+            FinancialCard(
+                title = "Cash In",
+                amount = financialSummary.cashInAmount,
+                color = Color(0xFF10B981), // Green
+                modifier = Modifier.weight(1f)
+            )
+            
+            FinancialCard(
+                title = "Cash Out",
+                amount = financialSummary.cashOutAmount,
+                color = Color(0xFFEF4444), // Red
+                modifier = Modifier.weight(1f)
+            )
+        }
         
-        FinancialCard(
-            title = "Pending Difference Amount",
-            amount = financialSummary.pendingDifferenceAmount,
-            color = Color(0xFF8B5CF6),
-            modifier = Modifier.weight(1f)
-        )
+        // Second row - Difference amounts (3 cards)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            FinancialCard(
+                title = "Positive Difference",
+                amount = financialSummary.positiveDifferenceAmount,
+                color = Color(0xFF10B981), // Green
+                modifier = Modifier.weight(1f)
+            )
+            
+            FinancialCard(
+                title = "Negative Difference",
+                amount = financialSummary.negativeDifferenceAmount,
+                color = Color(0xFFEF4444), // Red
+                modifier = Modifier.weight(1f)
+            )
+            
+            FinancialCard(
+                title = "Net Difference",
+                amount = financialSummary.pendingDifferenceAmount,
+                color = if (financialSummary.pendingDifferenceAmount >= 0) Color(0xFF10B981) else Color(0xFFEF4444), // Green if positive, Red if negative
+                modifier = Modifier.weight(1f)
+            )
+        }
         
-        FinancialCard(
-            title = "Pending Purchase Amount",
-            amount = financialSummary.pendingPurchaseAmount,
-            color = Color(0xFFEF4444),
-            modifier = Modifier.weight(1f)
-        )
-        
-        FinancialCard(
-            title = "Net Balance",
-            amount = financialSummary.netBalance,
-            color = if (financialSummary.netBalance >= 0) Color(0xFF10B981) else Color(0xFFEF4444),
-            modifier = Modifier.weight(1f)
-        )
+        // Third row - Net Balance
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            FinancialCard(
+                title = "Net Balance",
+                amount = financialSummary.netBalance,
+                color = if (financialSummary.netBalance >= 0) Color(0xFF10B981) else Color(0xFFEF4444), // Green if positive, Red if negative
+                modifier = Modifier.weight(1f)
+            )
+            
+            // Add empty space to maintain layout
+            Spacer(modifier = Modifier.weight(3f))
+        }
     }
 }
 
@@ -606,6 +721,18 @@ fun TransactionRecordsSection(
                             color = Color(0xFF9CA3AF),
                             fontSize = 14.sp
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Fetching latest data from Firebase",
+                            color = Color(0xFF6B7280),
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "This may take a moment",
+                            color = Color(0xFF6B7280),
+                            fontSize = 11.sp
+                        )
                     }
                 }
             } else {
@@ -709,21 +836,62 @@ fun CombinedTransactionList(
                     val transactionDate = when (transaction) {
                         is TransactionItem.SaleItem -> {
                             try {
-                                LocalDate.parse(transaction.sale.saleDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                // Try multiple date formats for saleDate
+                                when {
+                                    transaction.sale.saleDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) -> {
+                                        // yyyy-mm-dd format
+                                        LocalDate.parse(transaction.sale.saleDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                                    }
+                                    transaction.sale.saleDate.matches(Regex("\\d{2}/\\d{2}/\\d{4}")) -> {
+                                        // dd/MM/yyyy format
+                                        LocalDate.parse(transaction.sale.saleDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                    }
+                                    else -> {
+                                        // Try parsing as ISO date first, then fallback to dd/MM/yyyy
+                                        try {
+                                            LocalDate.parse(transaction.sale.saleDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                                        } catch (e: Exception) {
+                                            LocalDate.parse(transaction.sale.saleDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                        }
+                                    }
+                                }
                             } catch (e: Exception) {
                                 LocalDate.now()
                             }
                         }
                         is TransactionItem.PurchaseItem -> {
                             try {
-                                LocalDate.parse(transaction.purchase.purchaseDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                // Try multiple date formats for purchaseDate
+                                when {
+                                    transaction.purchase.purchaseDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) -> {
+                                        // yyyy-mm-dd format
+                                        LocalDate.parse(transaction.purchase.purchaseDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                                    }
+                                    transaction.purchase.purchaseDate.matches(Regex("\\d{2}/\\d{2}/\\d{4}")) -> {
+                                        // dd/MM/yyyy format
+                                        LocalDate.parse(transaction.purchase.purchaseDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                    }
+                                    else -> {
+                                        // Try parsing as ISO date first, then fallback to dd/MM/yyyy
+                                        try {
+                                            LocalDate.parse(transaction.purchase.purchaseDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                                        } catch (e: Exception) {
+                                            LocalDate.parse(transaction.purchase.purchaseDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                        }
+                                    }
+                                }
                             } catch (e: Exception) {
                                 LocalDate.now()
                             }
                         }
                         is TransactionItem.CashTransactionItem -> {
-                            transaction.cashTransaction.createdAt?.let { 
-                                java.time.LocalDate.ofEpochDay(it.seconds / 86400)
+                            transaction.cashTransaction.createdAt?.let { timestamp ->
+                                try {
+                                    // Convert Firebase Timestamp to LocalDate
+                                    java.time.LocalDate.ofEpochDay(timestamp.seconds / 86400)
+                                } catch (e: Exception) {
+                                    LocalDate.now()
+                                }
                             } ?: LocalDate.now()
                         }
                     }
@@ -781,10 +949,10 @@ fun CombinedTransactionList(
         }
     }
     
-    LazyColumn(
+    Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(allTransactions) { transaction ->
+        allTransactions.forEach { transaction ->
             TransactionItemCard(transaction = transaction)
         }
     }
@@ -807,9 +975,28 @@ fun SalesTransactionList(
                 
                 sales.filter { sale ->
                     try {
-                        val saleDate = LocalDate.parse(sale.saleDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        // Try multiple date formats for saleDate
+                        val saleDate = when {
+                            sale.saleDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) -> {
+                                // yyyy-mm-dd format
+                                LocalDate.parse(sale.saleDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                            }
+                            sale.saleDate.matches(Regex("\\d{2}/\\d{2}/\\d{4}")) -> {
+                                // dd/MM/yyyy format
+                                LocalDate.parse(sale.saleDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                            }
+                            else -> {
+                                // Try parsing as ISO date first, then fallback to dd/MM/yyyy
+                                try {
+                                    LocalDate.parse(sale.saleDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                                } catch (e: Exception) {
+                                    LocalDate.parse(sale.saleDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                }
+                            }
+                        }
                         saleDate.isAfter(fromDate.minusDays(1)) && saleDate.isBefore(toDate.plusDays(1))
                     } catch (e: Exception) {
+                        // If date parsing fails, include the record
                         true
                     }
                 }
@@ -849,10 +1036,10 @@ fun SalesTransactionList(
         }
     }
     
-    LazyColumn(
+    Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(filteredAndSortedSales) { sale ->
+        filteredAndSortedSales.forEach { sale ->
             TransactionItemCard(transaction = TransactionItem.SaleItem(sale))
         }
     }
@@ -875,9 +1062,28 @@ fun PurchasesTransactionList(
                 
                 purchases.filter { purchase ->
                     try {
-                        val purchaseDate = LocalDate.parse(purchase.purchaseDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        // Try multiple date formats for purchaseDate
+                        val purchaseDate = when {
+                            purchase.purchaseDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) -> {
+                                // yyyy-mm-dd format
+                                LocalDate.parse(purchase.purchaseDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                            }
+                            purchase.purchaseDate.matches(Regex("\\d{2}/\\d{2}/\\d{4}")) -> {
+                                // dd/MM/yyyy format
+                                LocalDate.parse(purchase.purchaseDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                            }
+                            else -> {
+                                // Try parsing as ISO date first, then fallback to dd/MM/yyyy
+                                try {
+                                    LocalDate.parse(purchase.purchaseDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                                } catch (e: Exception) {
+                                    LocalDate.parse(purchase.purchaseDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                }
+                            }
+                        }
                         purchaseDate.isAfter(fromDate.minusDays(1)) && purchaseDate.isBefore(toDate.plusDays(1))
                     } catch (e: Exception) {
+                        // If date parsing fails, include the record
                         true
                     }
                 }
@@ -917,10 +1123,10 @@ fun PurchasesTransactionList(
         }
     }
     
-    LazyColumn(
+    Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(filteredAndSortedPurchases) { purchase ->
+        filteredAndSortedPurchases.forEach { purchase ->
             TransactionItemCard(transaction = TransactionItem.PurchaseItem(purchase))
         }
     }
@@ -942,10 +1148,16 @@ fun CashInTransactionList(
                 val toDate = LocalDate.parse(filterDateTo, DateTimeFormatter.ISO_LOCAL_DATE)
                 
                 cashTransactions.filter { transaction ->
-                    transaction.createdAt?.let { 
-                        val transactionDate = java.time.LocalDate.ofEpochDay(it.seconds / 86400)
-                        transactionDate.isAfter(fromDate.minusDays(1)) && transactionDate.isBefore(toDate.plusDays(1))
-                    } ?: true
+                    transaction.createdAt?.let { timestamp ->
+                        try {
+                            // Convert Firebase Timestamp to LocalDate
+                            val transactionDate = java.time.LocalDate.ofEpochDay(timestamp.seconds / 86400)
+                            transactionDate.isAfter(fromDate.minusDays(1)) && transactionDate.isBefore(toDate.plusDays(1))
+                        } catch (e: Exception) {
+                            // If timestamp conversion fails, include the record
+                            true
+                        }
+                    } ?: true // Include records without createdAt timestamp
                 }
             } catch (e: Exception) {
                 cashTransactions
@@ -979,10 +1191,10 @@ fun CashInTransactionList(
         }
     }
     
-    LazyColumn(
+    Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(filteredAndSortedTransactions) { transaction ->
+        filteredAndSortedTransactions.forEach { transaction ->
             TransactionItemCard(transaction = TransactionItem.CashTransactionItem(transaction))
         }
     }
@@ -1004,10 +1216,16 @@ fun CashOutTransactionList(
                 val toDate = LocalDate.parse(filterDateTo, DateTimeFormatter.ISO_LOCAL_DATE)
                 
                 cashTransactions.filter { transaction ->
-                    transaction.createdAt?.let { 
-                        val transactionDate = java.time.LocalDate.ofEpochDay(it.seconds / 86400)
-                        transactionDate.isAfter(fromDate.minusDays(1)) && transactionDate.isBefore(toDate.plusDays(1))
-                    } ?: true
+                    transaction.createdAt?.let { timestamp ->
+                        try {
+                            // Convert Firebase Timestamp to LocalDate
+                            val transactionDate = java.time.LocalDate.ofEpochDay(timestamp.seconds / 86400)
+                            transactionDate.isAfter(fromDate.minusDays(1)) && transactionDate.isBefore(toDate.plusDays(1))
+                        } catch (e: Exception) {
+                            // If timestamp conversion fails, include the record
+                            true
+                        }
+                    } ?: true // Include records without createdAt timestamp
                 }
             } catch (e: Exception) {
                 cashTransactions
@@ -1041,10 +1259,10 @@ fun CashOutTransactionList(
         }
     }
     
-    LazyColumn(
+    Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(filteredAndSortedTransactions) { transaction ->
+        filteredAndSortedTransactions.forEach { transaction ->
             TransactionItemCard(transaction = TransactionItem.CashTransactionItem(transaction))
         }
     }
@@ -1066,10 +1284,16 @@ fun AllCashTransactionList(
                 val toDate = LocalDate.parse(filterDateTo, DateTimeFormatter.ISO_LOCAL_DATE)
                 
                 cashTransactions.filter { transaction ->
-                    transaction.createdAt?.let { 
-                        val transactionDate = java.time.LocalDate.ofEpochDay(it.seconds / 86400)
-                        transactionDate.isAfter(fromDate.minusDays(1)) && transactionDate.isBefore(toDate.plusDays(1))
-                    } ?: true
+                    transaction.createdAt?.let { timestamp ->
+                        try {
+                            // Convert Firebase Timestamp to LocalDate
+                            val transactionDate = java.time.LocalDate.ofEpochDay(timestamp.seconds / 86400)
+                            transactionDate.isAfter(fromDate.minusDays(1)) && transactionDate.isBefore(toDate.plusDays(1))
+                        } catch (e: Exception) {
+                            // If timestamp conversion fails, include the record
+                            true
+                        }
+                    } ?: true // Include records without createdAt timestamp
                 }
             } catch (e: Exception) {
                 cashTransactions
@@ -1107,10 +1331,10 @@ fun AllCashTransactionList(
         }
     }
     
-    LazyColumn(
+    Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(filteredAndSortedTransactions) { transaction ->
+        filteredAndSortedTransactions.forEach { transaction ->
             TransactionItemCard(transaction = TransactionItem.CashTransactionItem(transaction))
         }
     }
@@ -1135,9 +1359,28 @@ fun DifferenceTransactionList(
                 
                 filteredSales.filter { sale ->
                     try {
-                        val saleDate = LocalDate.parse(sale.saleDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        // Try multiple date formats for saleDate
+                        val saleDate = when {
+                            sale.saleDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) -> {
+                                // yyyy-mm-dd format
+                                LocalDate.parse(sale.saleDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                            }
+                            sale.saleDate.matches(Regex("\\d{2}/\\d{2}/\\d{4}")) -> {
+                                // dd/MM/yyyy format
+                                LocalDate.parse(sale.saleDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                            }
+                            else -> {
+                                // Try parsing as ISO date first, then fallback to dd/MM/yyyy
+                                try {
+                                    LocalDate.parse(sale.saleDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                                } catch (e: Exception) {
+                                    LocalDate.parse(sale.saleDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                }
+                            }
+                        }
                         saleDate.isAfter(fromDate.minusDays(1)) && saleDate.isBefore(toDate.plusDays(1))
                     } catch (e: Exception) {
+                        // If date parsing fails, include the record
                         true
                     }
                 }
@@ -1177,10 +1420,10 @@ fun DifferenceTransactionList(
         }
     }
     
-    LazyColumn(
+    Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(salesWithDifferences) { sale ->
+        salesWithDifferences.forEach { sale ->
             TransactionItemCard(transaction = TransactionItem.SaleItem(sale))
         }
     }
@@ -1193,44 +1436,212 @@ fun TransactionItemCard(transaction: TransactionItem) {
         backgroundColor = Color(0xFF374151),
         shape = RoundedCornerShape(6.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(12.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = transaction.type,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = transaction.typeColor
-                )
-                Text(
-                    text = transaction.description,
-                    fontSize = 12.sp,
-                    color = Color(0xFF9CA3AF)
-                )
-                Text(
-                    text = transaction.date,
-                    fontSize = 11.sp,
-                    color = Color(0xFF6B7280)
-                )
+            // Header row with type and main amount
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = transaction.type,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = transaction.typeColor
+                    )
+                    Text(
+                        text = transaction.description,
+                        fontSize = 12.sp,
+                        color = Color(0xFF9CA3AF)
+                    )
+                }
+                
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = transaction.amount,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = transaction.amountColor
+                    )
+                    Text(
+                        text = transaction.status,
+                        fontSize = 11.sp,
+                        color = transaction.statusColor
+                    )
+                }
             }
             
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = transaction.amount,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = transaction.amountColor
-                )
-                Text(
-                    text = transaction.status,
-                    fontSize = 11.sp,
-                    color = transaction.statusColor
-                )
+            // Date row
+            Text(
+                text = transaction.date,
+                fontSize = 11.sp,
+                color = Color(0xFF6B7280),
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            
+            // Additional details based on transaction type
+            when (transaction) {
+                is TransactionItem.SaleItem -> {
+                    val sale = transaction.sale
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        // Portal amount details
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Portal Amount:",
+                                fontSize = 11.sp,
+                                color = Color(0xFF9CA3AF)
+                            )
+                            Text(
+                                text = "₹${String.format("%.2f", sale.totalPortalAmount)}",
+                                fontSize = 11.sp,
+                                color = Color(0xFF10B981)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Pending Portal:",
+                                fontSize = 11.sp,
+                                color = Color(0xFF9CA3AF)
+                            )
+                            Text(
+                                text = "₹${String.format("%.2f", sale.totalPortalAmount - sale.portalAmountPaid)}",
+                                fontSize = 11.sp,
+                                color = Color(0xFFF59E0B)
+                            )
+                        }
+                        
+                        // Difference amount details
+                        if (sale.differenceAmount != 0.0) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Difference:",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF9CA3AF)
+                                )
+                                Text(
+                                    text = "₹${String.format("%.2f", sale.differenceAmount)}",
+                                    fontSize = 11.sp,
+                                    color = if (sale.differenceAmount >= 0) Color(0xFF10B981) else Color(0xFFEF4444)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Pending Difference:",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF9CA3AF)
+                                )
+                                Text(
+                                    text = "₹${String.format("%.2f", if (sale.differenceAmount > 0) sale.differenceAmount - sale.differenceAmountPaid else sale.differenceAmount + sale.differenceAmountPaid)}",
+                                    fontSize = 11.sp,
+                                    color = if (sale.differenceAmount >= 0) Color(0xFF10B981) else Color(0xFFEF4444)
+                                )
+                            }
+                        }
+                    }
+                }
+                is TransactionItem.PurchaseItem -> {
+                    val purchase = transaction.purchase
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        // Purchase amount details
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Total Amount:",
+                                fontSize = 11.sp,
+                                color = Color(0xFF9CA3AF)
+                            )
+                            Text(
+                                text = "₹${String.format("%.2f", purchase.grandTotal)}",
+                                fontSize = 11.sp,
+                                color = Color(0xFFEF4444)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Pending Amount:",
+                                fontSize = 11.sp,
+                                color = Color(0xFF9CA3AF)
+                            )
+                            Text(
+                                text = "₹${String.format("%.2f", purchase.grandTotal - purchase.amountPaid)}",
+                                fontSize = 11.sp,
+                                color = Color(0xFFF59E0B)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Items: ${purchase.items.size}",
+                                fontSize = 11.sp,
+                                color = Color(0xFF9CA3AF)
+                            )
+                            Text(
+                                text = "GST: ₹${String.format("%.2f", purchase.gstAmount)}",
+                                fontSize = 11.sp,
+                                color = Color(0xFF9CA3AF)
+                            )
+                        }
+                    }
+                }
+                is TransactionItem.CashTransactionItem -> {
+                    val cash = transaction.cashTransaction
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        // Show module information
+                        val moduleInfo = when {
+                            cash.note.contains("Cash Out from Purchase Module") -> "Cash Out from Purchase Module"
+                            cash.note.contains("Cash In from Sale Module") -> "Cash In from Sale Module"
+                            cash.note.contains("Cash In from Customer Module") -> "Cash In from Customer Module"
+                            cash.note.contains("Cash Out from Customer Module") -> "Cash Out from Customer Module"
+                            else -> "Cash Transaction"
+                        }
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Module:",
+                                fontSize = 11.sp,
+                                color = Color(0xFF9CA3AF)
+                            )
+                            Text(
+                                text = moduleInfo,
+                                fontSize = 11.sp,
+                                color = when (moduleInfo) {
+                                    "Cash In from Sale Module", "Cash In from Customer Module" -> Color(0xFF10B981)
+                                    "Cash Out from Purchase Module", "Cash Out from Customer Module" -> Color(0xFFEF4444)
+                                    else -> Color(0xFF9CA3AF)
+                                },
+                                modifier = Modifier.weight(1f),
+                                maxLines = 2
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -1241,7 +1652,11 @@ data class FinancialSummary(
     val pendingPortalAmount: Double = 0.0,
     val pendingDifferenceAmount: Double = 0.0,
     val pendingPurchaseAmount: Double = 0.0,
-    val netBalance: Double = 0.0
+    val netBalance: Double = 0.0,
+    val cashInAmount: Double = 0.0,
+    val cashOutAmount: Double = 0.0,
+    val positiveDifferenceAmount: Double = 0.0,
+    val negativeDifferenceAmount: Double = 0.0
 )
 
 enum class TransactionType(val displayName: String) {
@@ -1289,7 +1704,7 @@ sealed class TransactionItem {
     val description: String
         get() = when (this) {
             is SaleItem -> "Bill: ${sale.billNumber}"
-            is PurchaseItem -> "Purchase: ${purchase.id}"
+            is PurchaseItem -> "Purchase"
             is CashTransactionItem -> cashTransaction.note
         }
     
@@ -1563,22 +1978,51 @@ private fun printCustomerTransactions(
                         append("""
                             Bill: ${sale.billNumber}<br/>
                             Qty: ${String.format("%.2f", sale.quantityKg)} kg<br/>
-                            Rate: Rs${String.format("%.2f", sale.discountedRatePerKg)}/kg
+                            Rate: Rs${String.format("%.2f", sale.discountedRatePerKg)}/kg<br/>
+                            <br/>
+                            <strong>Portal Amount:</strong> Rs${String.format("%.2f", sale.totalPortalAmount)}<br/>
+                            <strong>Pending Portal:</strong> Rs${String.format("%.2f", sale.totalPortalAmount - sale.portalAmountPaid)}<br/>
                         """.trimIndent())
+                        
+                        // Add difference details if there's a difference
+                        if (sale.differenceAmount != 0.0) {
+                            val differenceColor = if (sale.differenceAmount >= 0) "#10B981" else "#EF4444"
+                            val pendingDifference = if (sale.differenceAmount > 0) sale.differenceAmount - sale.differenceAmountPaid else sale.differenceAmount + sale.differenceAmountPaid
+                            append("""
+                                <br/>
+                                <strong style="color: $differenceColor">Difference:</strong> <span style="color: $differenceColor">Rs${String.format("%.2f", sale.differenceAmount)}</span><br/>
+                                <strong style="color: $differenceColor">Pending Difference:</strong> <span style="color: $differenceColor">Rs${String.format("%.2f", pendingDifference)}</span>
+                            """.trimIndent())
+                        }
                     }
                     is TransactionItem.PurchaseItem -> {
                         val purchase = transaction.purchase
                         append("""
                             Items: ${purchase.items.size}<br/>
                             GST: Rs${String.format("%.2f", purchase.gstAmount)}<br/>
-                            Total: Rs${String.format("%.2f", purchase.grandTotal)}
+                            <br/>
+                            <strong>Total Amount:</strong> Rs${String.format("%.2f", purchase.grandTotal)}<br/>
+                            <strong>Pending Amount:</strong> Rs${String.format("%.2f", purchase.grandTotal - purchase.amountPaid)}
                         """.trimIndent())
                     }
                     is TransactionItem.CashTransactionItem -> {
                         val cash = transaction.cashTransaction
+                        val moduleInfo = when {
+                            cash.note.contains("Cash Out from Purchase Module") -> "Cash Out from Purchase Module"
+                            cash.note.contains("Cash In from Sale Module") -> "Cash In from Sale Module"
+                            cash.note.contains("Cash In from Customer Module") -> "Cash In from Customer Module"
+                            cash.note.contains("Cash Out from Customer Module") -> "Cash Out from Customer Module"
+                            else -> "Cash Transaction"
+                        }
+                        
+                        val moduleColor = when (moduleInfo) {
+                            "Cash In from Sale Module", "Cash In from Customer Module" -> "#10B981"
+                            "Cash Out from Purchase Module", "Cash Out from Customer Module" -> "#EF4444"
+                            else -> "#666"
+                        }
+                        
                         append("""
-                            ${cash.note}<br/>
-                            Balance: Rs${String.format("%.2f", cash.newBalance)}
+                            <strong style="color: $moduleColor">Module:</strong> <span style="color: $moduleColor">$moduleInfo</span>
                         """.trimIndent())
                     }
                 }
@@ -1642,19 +2086,47 @@ fun calculateFinancialSummary(
         sale.totalPortalAmount - sale.portalAmountPaid
     }
     
-    // Calculate pending difference amount from sales
-    val pendingDifferenceAmount = customerSales.sumOf { sale ->
-        when {
-            sale.differenceAmount < 0 -> sale.differenceAmount + sale.differenceAmountPaid // Negative: customer owes us, paid amount reduces what they owe
-            sale.differenceAmount > 0 -> sale.differenceAmount - sale.differenceAmountPaid // Positive: we owe customer, paid amount reduces what we owe
-            else -> 0.0 // No difference
+    // Calculate positive and negative difference amounts separately
+    val positiveDifferenceAmount = customerSales.sumOf { sale ->
+        if (sale.differenceAmount > 0) {
+            sale.differenceAmount - sale.differenceAmountPaid // Positive: we owe customer, paid amount reduces what we owe
+        } else {
+            0.0
         }
     }
+    
+    val negativeDifferenceAmount = customerSales.sumOf { sale ->
+        if (sale.differenceAmount < 0) {
+            sale.differenceAmount + sale.differenceAmountPaid // Negative: customer owes us, paid amount reduces what they owe
+        } else {
+            0.0
+        }
+    }
+    
+    // Calculate total pending difference amount
+    val pendingDifferenceAmount = positiveDifferenceAmount + negativeDifferenceAmount
     
     // Calculate pending purchase amount (using grand total which includes GST)
     val pendingPurchaseAmount = customerPurchases.sumOf { purchase ->
         purchase.grandTotal - purchase.amountPaid
     }
+    
+    // Calculate cash in and cash out amounts (excluding purchase module cash outs and difference cash)
+    val cashInAmount = customerCashTransactions
+        .filter { 
+            !it.note.contains("Cash Out from Purchase Module") && 
+            !it.note.contains("Difference Cash")
+        }
+        .filter { it.transactionType == CashTransactionType.RECEIVE }
+        .sumOf { it.amount }
+    
+    val cashOutAmount = customerCashTransactions
+        .filter { 
+            !it.note.contains("Cash Out from Purchase Module") && 
+            !it.note.contains("Difference Cash")
+        }
+        .filter { it.transactionType == CashTransactionType.GIVE }
+        .sumOf { it.amount }
     
     // Calculate net cash transaction impact (excluding cash out from purchase module and difference cash)
     val cashTransactionImpact = customerCashTransactions
@@ -1676,6 +2148,10 @@ fun calculateFinancialSummary(
         pendingPortalAmount = pendingPortalAmount,
         pendingDifferenceAmount = pendingDifferenceAmount,
         pendingPurchaseAmount = pendingPurchaseAmount,
-        netBalance = netBalance
+        netBalance = netBalance,
+        cashInAmount = cashInAmount,
+        cashOutAmount = cashOutAmount,
+        positiveDifferenceAmount = positiveDifferenceAmount,
+        negativeDifferenceAmount = negativeDifferenceAmount
     )
 }

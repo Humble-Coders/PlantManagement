@@ -24,6 +24,7 @@ import com.humblecoders.plantmanagement.repositories.NoteRepository
 import com.humblecoders.plantmanagement.repositories.ProductionRepository
 import com.humblecoders.plantmanagement.repositories.SaleRepository
 import com.humblecoders.plantmanagement.repositories.PendingBillRepository
+import com.humblecoders.plantmanagement.repositories.UserBalanceRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
@@ -36,6 +37,7 @@ import com.humblecoders.plantmanagement.viewmodels.ProductionViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
 import com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel
+import com.humblecoders.plantmanagement.viewmodels.UserBalanceViewModel
 import java.io.ByteArrayInputStream
 
 object FirebaseCredentialsHolder {
@@ -99,6 +101,7 @@ fun main() = application {
     var saleViewModel: SaleViewModel? = null
     var pendingBillViewModel: PendingBillViewModel? = null
     var noteViewModel: NoteViewModel? = null
+    var userBalanceViewModel: UserBalanceViewModel? = null
 
 
 
@@ -132,7 +135,7 @@ fun main() = application {
             cashTransactionViewModel = CashTransactionViewModel(cashTransactionRepository, cashOutRepository, cashInRepository)
             
             val cashReportRepository = CashReportRepository(firestoreNonNull)
-            cashReportViewModel = CashReportViewModel(cashReportRepository, storageService)
+            cashReportViewModel = CashReportViewModel(cashReportRepository, storageService, currentUser)
 
             val saleRepository = SaleRepository(firestoreNonNull, currentUser.uid, appId)
             saleViewModel = SaleViewModel(saleRepository, cashInRepository, storageService)
@@ -154,9 +157,12 @@ fun main() = application {
             
             val noteRepository = NoteRepository(firestoreNonNull, currentUser.uid, appId)
             noteViewModel = NoteViewModel(noteRepository)
+            
+            val userBalanceRepository = UserBalanceRepository(firestoreNonNull, currentUser.uid, appId)
+            userBalanceViewModel = UserBalanceViewModel(userBalanceRepository, currentUser)
         }
 
-        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null && noteViewModel != null && pendingBillViewModel != null) {
+        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null && noteViewModel != null && pendingBillViewModel != null && userBalanceViewModel != null) {
             AppNavigation(
                 authViewModel = authViewModel,
                 entityViewModel = entityViewModel!!,
@@ -169,6 +175,7 @@ fun main() = application {
                 saleViewModel = saleViewModel!!,
                 pendingBillViewModel = pendingBillViewModel!!,
                 noteViewModel = noteViewModel!!,
+                userBalanceViewModel = userBalanceViewModel!!,
                 storageService = storageService
             )
         } else {
@@ -203,7 +210,7 @@ fun main() = application {
                         appId
                     )
                 ),
-                cashReportViewModel = CashReportViewModel(CashReportRepository(firestoreNonNull), storageService),
+                cashReportViewModel = CashReportViewModel(CashReportRepository(firestoreNonNull), storageService, null),
                 productionViewModel = ProductionViewModel(
                     ProductionRepository(
                         firestoreNonNull,
@@ -226,6 +233,7 @@ fun main() = application {
                 ),
                 pendingBillViewModel = PendingBillViewModel(PendingBillRepository(firestoreNonNull, "", appId)),
                 noteViewModel = NoteViewModel(NoteRepository(firestoreNonNull, "", appId)),
+                userBalanceViewModel = UserBalanceViewModel(UserBalanceRepository(firestoreNonNull, "", appId), null),
                 storageService = storageService
             )
         }

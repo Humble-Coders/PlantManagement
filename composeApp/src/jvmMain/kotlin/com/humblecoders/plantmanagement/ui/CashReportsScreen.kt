@@ -33,6 +33,11 @@ import com.humblecoders.plantmanagement.ui.components.AddCashTransactionDialog
 import com.humblecoders.plantmanagement.ui.components.CategoryManagementDialog
 import com.humblecoders.plantmanagement.ui.components.DatePicker
 import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
+import com.humblecoders.plantmanagement.viewmodels.UserBalanceViewModel
+import com.humblecoders.plantmanagement.data.UserBalance
+import com.humblecoders.plantmanagement.data.BalanceTransfer
+import com.humblecoders.plantmanagement.data.BalanceTransferType
+import com.humblecoders.plantmanagement.data.UserCashOutTransaction
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.imageio.ImageIO
@@ -41,11 +46,16 @@ import com.humblecoders.plantmanagement.utils.toComposeImageBitmap
 @Composable
 fun CashReportsScreen(
     cashReportViewModel: CashReportViewModel,
+    userBalanceViewModel: UserBalanceViewModel,
+    userRole: com.humblecoders.plantmanagement.data.UserRole?,
     onBack: () -> Unit
 ) {
     var showAddTransactionDialog by remember { mutableStateOf(false) }
     var showCategoryManagementDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf<CashReport?>(null) }
+    var showTransferBalanceDialog by remember { mutableStateOf(false) }
+    var showTransferHistoryDialog by remember { mutableStateOf(false) }
+    var showUserCashOutFilter by remember { mutableStateOf(false) }
 
     val cashReportState = cashReportViewModel.cashReportState
     val coroutineScope = rememberCoroutineScope()
@@ -56,6 +66,7 @@ fun CashReportsScreen(
         cashReportViewModel.loadCategories()
         cashReportViewModel.loadSummary()
         cashReportViewModel.listenToCashReports()
+        userBalanceViewModel.loadSharedUserBalance()
     }
 
     // Clear messages after showing
@@ -74,6 +85,7 @@ fun CashReportsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF111827))
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         // Header
@@ -142,6 +154,45 @@ fun CashReportsScreen(
                         Text("Categories")
                     }
 
+                    // User Balance Management Buttons (Admin only)
+                    if (userRole == com.humblecoders.plantmanagement.data.UserRole.ADMIN) {
+                        Button(
+                            onClick = { showTransferBalanceDialog = true },
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = Color(0xFF8B5CF6),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.AccountBalance,
+                                contentDescription = "Transfer Balance",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Transfer")
+                        }
+
+                        Button(
+                            onClick = { showTransferHistoryDialog = true },
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = Color(0xFFF59E0B),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.History,
+                                contentDescription = "Transfer History",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("History")
+                        }
+                    }
+
                     Button(
                         onClick = { showAddTransactionDialog = true },
                         colors = ButtonDefaults.buttonColors(
@@ -163,7 +214,8 @@ fun CashReportsScreen(
                     Button(
                         onClick = { 
                             coroutineScope.launch {
-                                cashReportViewModel.generatePdf()
+                                val accountantBalance = userBalanceViewModel.userBalance?.currentBalance ?: 0.0
+                                cashReportViewModel.generatePdf(accountantBalance)
                                     .fold(
                                         onSuccess = { pdfBytes ->
                                             // Save PDF to file
@@ -276,8 +328,24 @@ fun CashReportsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // User Balance Card
+        UserBalanceCard(
+            userBalance = userBalanceViewModel.userBalance,
+            userRole = userRole,
+            isLoading = userBalanceViewModel.isLoading,
+            errorMessage = userBalanceViewModel.errorMessage
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Filtering and Search UI
-        CashReportFilterCard(cashReportViewModel = cashReportViewModel, cashReportState = cashReportState)
+        CashReportFilterCard(
+            cashReportViewModel = cashReportViewModel, 
+            cashReportState = cashReportState,
+            userBalanceViewModel = userBalanceViewModel,
+            showUserCashOutFilter = showUserCashOutFilter,
+            onToggleUserCashOutFilter = { showUserCashOutFilter = !showUserCashOutFilter }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -341,7 +409,12 @@ fun CashReportsScreen(
                 }
             }
         } else {
-            val filteredReports = cashReportViewModel.getFilteredAndSortedReports()
+            val filteredReports = if (showUserCashOutFilter) {
+                // Show only accountant transactions (transactions with accountantTransaction = true)
+                cashReportViewModel.getFilteredAndSortedReports().filter { it.accountantTransaction }
+            } else {
+                cashReportViewModel.getFilteredAndSortedReports()
+            }
             
             if (filteredReports.isEmpty()) {
                 Box(
@@ -372,13 +445,14 @@ fun CashReportsScreen(
                     }
                 }
             } else {
-                LazyColumn(
+                Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filteredReports) { transaction ->
+                    filteredReports.forEach { transaction ->
                         CashReportTransactionCard(
                             transaction = transaction,
                             categories = cashReportState.categories,
+                            userRole = userRole,
                             onDelete = { showDeleteConfirmDialog = transaction }
                         )
                     }
@@ -391,6 +465,8 @@ fun CashReportsScreen(
     if (showAddTransactionDialog) {
         AddCashTransactionDialog(
             cashReportViewModel = cashReportViewModel,
+            userBalanceViewModel = userBalanceViewModel,
+            userRole = userRole,
             onDismiss = { showAddTransactionDialog = false }
         )
     }
@@ -421,6 +497,27 @@ fun CashReportsScreen(
             }
         )
     }
+
+    // Transfer Balance Dialog
+    if (showTransferBalanceDialog) {
+        TransferBalanceDialog(
+            onDismiss = { showTransferBalanceDialog = false },
+            onTransfer = { amount, transferType, notes ->
+                coroutineScope.launch {
+                    userBalanceViewModel.transferBalanceToSharedUserBalance(amount, transferType, notes)
+                    showTransferBalanceDialog = false
+                }
+            }
+        )
+    }
+
+    // Transfer History Dialog
+    if (showTransferHistoryDialog) {
+        TransferHistoryDialog(
+            balanceTransfers = userBalanceViewModel.balanceTransfers,
+            onDismiss = { showTransferHistoryDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -442,7 +539,7 @@ private fun CashReportSummaryCards(summary: com.humblecoders.plantmanagement.rep
         // Total Cash In
         Card(
             modifier = Modifier.weight(1f),
-            backgroundColor = Color(0xFF10B981),
+            backgroundColor = Color(0xFF1F2937),
             shape = RoundedCornerShape(12.dp),
             elevation = 4.dp
         ) {
@@ -453,19 +550,19 @@ private fun CashReportSummaryCards(summary: com.humblecoders.plantmanagement.rep
                 Icon(
                     Icons.Default.TrendingUp,
                     contentDescription = "Cash In",
-                    tint = Color.White,
+                    tint = Color(0xFF10B981),
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Total Cash In",
-                    color = Color.White,
+                    color = Color(0xFF9CA3AF),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = "Rs.${String.format("%.2f", summary.totalCashIn)}",
-                    color = Color.White,
+                    color = Color(0xFF10B981),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -475,7 +572,7 @@ private fun CashReportSummaryCards(summary: com.humblecoders.plantmanagement.rep
         // Total Cash Out
         Card(
             modifier = Modifier.weight(1f),
-            backgroundColor = Color(0xFFEF4444),
+            backgroundColor = Color(0xFF1F2937),
             shape = RoundedCornerShape(12.dp),
             elevation = 4.dp
         ) {
@@ -486,19 +583,19 @@ private fun CashReportSummaryCards(summary: com.humblecoders.plantmanagement.rep
                 Icon(
                     Icons.Default.TrendingDown,
                     contentDescription = "Cash Out",
-                    tint = Color.White,
+                    tint = Color(0xFFEF4444),
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Total Cash Out",
-                    color = Color.White,
+                    color = Color(0xFF9CA3AF),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = "Rs.${String.format("%.2f", summary.totalCashOut)}",
-                    color = Color.White,
+                    color = Color(0xFFEF4444),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -508,7 +605,7 @@ private fun CashReportSummaryCards(summary: com.humblecoders.plantmanagement.rep
         // Net Change
         Card(
             modifier = Modifier.weight(1f),
-            backgroundColor = if (summary.netChange >= 0) Color(0xFF3B82F6) else Color(0xFFF59E0B),
+            backgroundColor = Color(0xFF1F2937),
             shape = RoundedCornerShape(12.dp),
             elevation = 4.dp
         ) {
@@ -519,19 +616,19 @@ private fun CashReportSummaryCards(summary: com.humblecoders.plantmanagement.rep
                 Icon(
                     if (summary.netChange >= 0) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
                     contentDescription = "Net Change",
-                    tint = Color.White,
+                    tint = if (summary.netChange >= 0) Color(0xFF10B981) else Color(0xFFEF4444),
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Net Change",
-                    color = Color.White,
+                    color = Color(0xFF9CA3AF),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = "Rs.${String.format("%.2f", summary.netChange)}",
-                    color = Color.White,
+                    color = if (summary.netChange >= 0) Color(0xFF10B981) else Color(0xFFEF4444),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -545,6 +642,7 @@ private fun CashReportSummaryCards(summary: com.humblecoders.plantmanagement.rep
 private fun CashReportTransactionCard(
     transaction: CashReport,
     categories: List<CashReportCategory>,
+    userRole: com.humblecoders.plantmanagement.data.UserRole?,
     onDelete: () -> Unit
 ) {
     var showImageDialog by remember { mutableStateOf(false) }
@@ -586,6 +684,23 @@ private fun CashReportTransactionCard(
                         },
                         modifier = Modifier.size(20.dp)
                     )
+                    
+                    // Accountant Transaction Badge
+                    if (transaction.accountantTransaction) {
+                        Card(
+                            backgroundColor = Color(0xFF8B5CF6),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "ACCOUNTANT",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    
                     Text(
                         text = categoryName,
                         color = Color(0xFFF9FAFB),
@@ -593,7 +708,7 @@ private fun CashReportTransactionCard(
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    if (transaction.imageUrl.isNotBlank()) {
+                    if (transaction.documentUrls.isNotEmpty()) {
                         Icon(
                             Icons.Default.Image,
                             contentDescription = "Has Image",
@@ -640,7 +755,7 @@ private fun CashReportTransactionCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // View Image Button - Only show if transaction has an image
-                    if (transaction.imageUrl.isNotBlank()) {
+                    if (transaction.documentUrls.isNotEmpty()) {
                         OutlinedButton(
                             onClick = { showImageDialog = true },
                             colors = ButtonDefaults.outlinedButtonColors(
@@ -667,25 +782,28 @@ private fun CashReportTransactionCard(
                         }
                     }
 
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            tint = Color(0xFF9CA3AF),
-                            modifier = Modifier.size(16.dp)
-                        )
+                    // Only show delete button for admin users
+                    if (userRole == com.humblecoders.plantmanagement.data.UserRole.ADMIN) {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = Color(0xFF9CA3AF),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
         }
     }
     
-    if (showImageDialog && transaction.imageUrl.isNotBlank()) {
-        ImageViewerDialog(
-            imageUrl = transaction.imageUrl,
+    if (showImageDialog && transaction.documentUrls.isNotEmpty()) {
+        DocumentViewDialog(
+            documentUrls = transaction.documentUrls,
             onDismiss = { showImageDialog = false }
         )
     }
@@ -793,7 +911,10 @@ private fun DeleteConfirmationDialog(
 @Composable
 private fun CashReportFilterCard(
     cashReportViewModel: CashReportViewModel,
-    cashReportState: com.humblecoders.plantmanagement.viewmodels.CashReportState
+    cashReportState: com.humblecoders.plantmanagement.viewmodels.CashReportState,
+    userBalanceViewModel: UserBalanceViewModel,
+    showUserCashOutFilter: Boolean,
+    onToggleUserCashOutFilter: () -> Unit
 ) {
     Card(
         backgroundColor = Color(0xFF1F2937),
@@ -870,6 +991,28 @@ private fun CashReportFilterCard(
                             Text("Cash Out Only")
                         }
                     }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // User Cash Out Filter Toggle
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Checkbox(
+                        checked = showUserCashOutFilter,
+                        onCheckedChange = { onToggleUserCashOutFilter() },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Color(0xFF10B981),
+                            uncheckedColor = Color(0xFF6B7280)
+                        )
+                    )
+                    Text(
+                        text = "Show Accountant Transactions Only",
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 12.sp
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1110,6 +1253,460 @@ private fun ImageViewerDialog(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Close", color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentViewDialog(
+    documentUrls: List<String>,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(0.9f)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Transaction Documents",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF9FAFB)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Display documents
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(documentUrls) { documentUrl ->
+                        DocumentItem(
+                            documentUrl = documentUrl,
+                            onClick = {
+                                try {
+                                    val fixedUrl = fixImageUrl(documentUrl)
+                                    java.awt.Desktop.getDesktop().browse(java.net.URI(fixedUrl))
+                                } catch (e: Exception) {
+                                    println("Error opening URL: ${e.message}")
+                                    e.printStackTrace()
+                                }
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF10B981)
+                    )
+                ) {
+                    Text("Close", color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentItem(
+    documentUrl: String,
+    onClick: () -> Unit
+) {
+    val isPdf = documentUrl.lowercase().contains(".pdf")
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        backgroundColor = Color(0xFF374151),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (isPdf) {
+                Icon(
+                    Icons.Default.PictureAsPdf,
+                    contentDescription = "PDF Document",
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(32.dp)
+                )
+                Text(
+                    text = "PDF Document",
+                    color = Color(0xFFF9FAFB),
+                    fontWeight = FontWeight.Medium
+                )
+            } else {
+                // Load and display image thumbnail
+                var imageBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+                var isLoading by remember { mutableStateOf(true) }
+                
+                LaunchedEffect(documentUrl) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        try {
+                            val url = java.net.URL(documentUrl)
+                            val connection = url.openConnection()
+                            connection.connect()
+                            val inputStream = connection.getInputStream()
+                            val bufferedImage = ImageIO.read(inputStream)
+                            imageBitmap = bufferedImage.toComposeImageBitmap()
+                            isLoading = false
+                        } catch (e: Exception) {
+                            isLoading = false
+                        }
+                    }
+                }
+                
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier.size(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color(0xFF10B981),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else if (imageBitmap != null) {
+                    Image(
+                        bitmap = imageBitmap!!,
+                        contentDescription = "Document Thumbnail",
+                        modifier = Modifier.size(32.dp)
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Image,
+                        contentDescription = "Image Document",
+                        tint = Color(0xFF3B82F6),
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                Text(
+                    text = "Image Document",
+                    color = Color(0xFFF9FAFB),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            
+            Spacer(modifier = Modifier.weight(1f))
+            
+            Icon(
+                Icons.Default.OpenInBrowser,
+                contentDescription = "Open in Browser",
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun UserBalanceCard(
+    userBalance: UserBalance?,
+    userRole: com.humblecoders.plantmanagement.data.UserRole?,
+    isLoading: Boolean,
+    errorMessage: String?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = Color(0xFF1F2937),
+        elevation = 8.dp,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Shared Accountant Balance",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF9FAFB)
+                )
+                
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF10B981),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage,
+                    color = Color(0xFFEF4444),
+                    fontSize = 14.sp
+                )
+            } else {
+                Text(
+                    text = "₹${String.format("%.2f", userBalance?.currentBalance ?: 0.0)}",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if ((userBalance?.currentBalance ?: 0.0) >= 0) Color(0xFF10B981) else Color(0xFFEF4444)
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = if (userRole == com.humblecoders.plantmanagement.data.UserRole.ADMIN) {
+                        "Admin can transfer balance to/from this shared accountant balance"
+                    } else {
+                        "Accountants can perform cash out transactions from this balance"
+                    },
+                    color = Color(0xFF9CA3AF),
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransferBalanceDialog(
+    onDismiss: () -> Unit,
+    onTransfer: (Double, BalanceTransferType, String) -> Unit
+) {
+    var amount by remember { mutableStateOf("") }
+    var transferType by remember { mutableStateOf(BalanceTransferType.ADD) }
+    var notes by remember { mutableStateOf("") }
+    var showError by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(0.9f)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Transfer Balance",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF9FAFB)
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount", color = Color(0xFF9CA3AF)) },
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        textColor = Color(0xFFF9FAFB),
+                        focusedBorderColor = Color(0xFF10B981),
+                        unfocusedBorderColor = Color(0xFF6B7280)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { transferType = BalanceTransferType.ADD },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (transferType == BalanceTransferType.ADD) Color(0xFF10B981) else Color(0xFF6B7280)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Add", color = Color.White)
+                    }
+                    
+                    Button(
+                        onClick = { transferType = BalanceTransferType.DEDUCT },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (transferType == BalanceTransferType.DEDUCT) Color(0xFFEF4444) else Color(0xFF6B7280)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Deduct", color = Color.White)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Notes (Optional)", color = Color(0xFF9CA3AF)) },
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        textColor = Color(0xFFF9FAFB),
+                        focusedBorderColor = Color(0xFF10B981),
+                        unfocusedBorderColor = Color(0xFF6B7280)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                if (showError) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Please enter a valid amount",
+                        color = Color(0xFFEF4444),
+                        fontSize = 12.sp
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF6B7280)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel", color = Color.White)
+                    }
+                    
+                    Button(
+                        onClick = {
+                            val amountValue = amount.toDoubleOrNull()
+                            if (amountValue != null && amountValue > 0) {
+                                onTransfer(amountValue, transferType, notes)
+                            } else {
+                                showError = true
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color(0xFF10B981)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Transfer", color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransferHistoryDialog(
+    balanceTransfers: List<BalanceTransfer>,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            backgroundColor = Color(0xFF1F2937),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(0.9f)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Transfer History",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF9FAFB)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(balanceTransfers) { transfer ->
+                        Card(
+                            backgroundColor = Color(0xFF374151),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = transfer.transferType.name,
+                                        color = if (transfer.transferType == BalanceTransferType.ADD) Color(0xFF10B981) else Color(0xFFEF4444),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "₹${String.format("%.2f", transfer.amount)}",
+                                        color = Color(0xFFF9FAFB),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                
+                                if (transfer.notes.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = transfer.notes,
+                                        color = Color(0xFF9CA3AF),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = transfer.createdAt?.let { 
+                                        SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(it.toDate())
+                                    } ?: "Unknown date",
+                                    color = Color(0xFF9CA3AF),
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
                     }
                 }
             }

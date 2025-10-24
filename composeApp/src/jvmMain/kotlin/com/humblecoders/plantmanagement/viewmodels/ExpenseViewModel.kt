@@ -66,25 +66,27 @@ class ExpenseViewModel(
         amount: Double,
         date: LocalDate,
         notes: String,
-        imageFile: File? = null  // ADD THIS PARAMETER
+        documentFiles: List<File> = emptyList()
     ) {
         viewModelScope.launch {
             expenseState = expenseState.copy(isProcessing = true, error = null)
 
-            // Upload image if provided
-            var imageUrl = ""
-            if (imageFile != null) {
-                val uploadResult = storageService.uploadImage(imageFile, "expenses")
-                uploadResult.fold(
-                    onSuccess = { url -> imageUrl = url },
-                    onFailure = { error ->
-                        expenseState = expenseState.copy(
-                            isProcessing = false,
-                            error = "Failed to upload image: ${error.message}"
-                        )
-                        return@launch
-                    }
-                )
+            // Upload documents if provided
+            val documentUrls = mutableListOf<String>()
+            if (documentFiles.isNotEmpty()) {
+                for (file in documentFiles) {
+                    val uploadResult = storageService.uploadDocument(file, "expenses")
+                    uploadResult.fold(
+                        onSuccess = { url -> documentUrls.add(url) },
+                        onFailure = { error ->
+                            expenseState = expenseState.copy(
+                                isProcessing = false,
+                                error = "Failed to upload document: ${error.message}"
+                            )
+                            return@launch
+                        }
+                    )
+                }
             }
 
             val timestamp = Timestamp.of(java.util.Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant()))
@@ -94,7 +96,7 @@ class ExpenseViewModel(
                 amount = amount,
                 date = timestamp,
                 notes = notes,
-                imageUrl = imageUrl  // ADD THIS LINE
+                documentUrls = documentUrls
             )
 
             val result = expenseRepository.addExpense(expense)
@@ -328,12 +330,12 @@ class ExpenseViewModel(
                 successMessage = null
             )
 
-            // Find the expense to get its image URL
+            // Find the expense to get its document URLs
             val expense = expenseState.expenses.find { it.id == expenseId }
-            val imageUrl = expense?.imageUrl ?: ""
+            val documentUrls = expense?.documentUrls ?: emptyList()
 
-            val result = if (imageUrl.isNotBlank()) {
-                expenseRepository.deleteExpenseWithImage(expenseId, imageUrl)
+            val result = if (documentUrls.isNotEmpty()) {
+                expenseRepository.deleteExpenseWithDocuments(expenseId, documentUrls)
             } else {
                 expenseRepository.deleteExpense(expenseId)
             }

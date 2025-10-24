@@ -9,6 +9,8 @@ import com.google.cloud.Timestamp
 import com.humblecoders.plantmanagement.data.CashReport
 import com.humblecoders.plantmanagement.data.CashReportCategory
 import com.humblecoders.plantmanagement.data.CashReportType
+import com.humblecoders.plantmanagement.data.User
+import com.humblecoders.plantmanagement.data.UserRole
 import com.humblecoders.plantmanagement.repositories.CashReportRepository
 import com.humblecoders.plantmanagement.repositories.CashReportSummary
 import com.humblecoders.plantmanagement.services.CashReportPdfService
@@ -56,6 +58,7 @@ data class CashReportState(
 class CashReportViewModel(
     private val cashReportRepository: CashReportRepository,
     private val storageService: FirebaseStorageService,
+    private val currentUser: User?,
     private val pdfService: CashReportPdfService = CashReportPdfService()
 ) : ViewModel() {
 
@@ -68,36 +71,40 @@ class CashReportViewModel(
         amount: Double,
         date: LocalDate,
         notes: String,
-        imageFile: File? = null
+        documentFiles: List<File> = emptyList()
     ) {
         viewModelScope.launch {
             cashReportState = cashReportState.copy(isProcessing = true, error = null)
             
-            // Upload image if provided
-            var imageUrl = ""
-            if (imageFile != null) {
-                val uploadResult = storageService.uploadImage(imageFile, "cash_reports")
-                uploadResult.fold(
-                    onSuccess = { url -> imageUrl = url },
-                    onFailure = { error ->
-                        cashReportState = cashReportState.copy(
-                            isProcessing = false,
-                            error = "Failed to upload image: ${error.message}"
-                        )
-                        return@launch
-                    }
-                )
+            // Upload documents if provided
+            val documentUrls = mutableListOf<String>()
+            if (documentFiles.isNotEmpty()) {
+                for (file in documentFiles) {
+                    val uploadResult = storageService.uploadDocument(file, "cash_reports")
+                    uploadResult.fold(
+                        onSuccess = { url -> documentUrls.add(url) },
+                        onFailure = { error ->
+                            cashReportState = cashReportState.copy(
+                                isProcessing = false,
+                                error = "Failed to upload document: ${error.message}"
+                            )
+                            return@launch
+                        }
+                    )
+                }
             }
             
             val timestamp = Timestamp.of(java.util.Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant()))
             
             val cashReport = CashReport(
+                userId = currentUser?.uid ?: "",
+                accountantTransaction = currentUser?.role == UserRole.USER,
                 transactionType = transactionType,
                 categoryId = categoryId,
                 amount = amount,
                 date = timestamp,
                 notes = notes,
-                imageUrl = imageUrl
+                documentUrls = documentUrls
             )
             
             val result = cashReportRepository.addCashReport(cashReport)
@@ -531,7 +538,7 @@ class CashReportViewModel(
     /**
      * Generate PDF for filtered cash reports
      */
-    suspend fun generatePdf(): Result<ByteArray> {
+    suspend fun generatePdf(accountantBalance: Double = 0.0): Result<ByteArray> {
         return withContext(Dispatchers.IO) {
             try {
                 val filteredReports = getFilteredAndSortedReports()
@@ -576,6 +583,7 @@ class CashReportViewModel(
                     transactions = filteredReports,
                     categories = cashReportState.categories,
                     summary = filteredSummary,
+                    accountantBalance = accountantBalance,
                     filterInfo = filterInfo
                 )
                 

@@ -64,7 +64,6 @@ class ProductionRepository(
     suspend fun getProductionRecords(): Result<List<ProductionRecord>> = withContext(Dispatchers.IO) {
         return@withContext try {
             val snapshot = getProductionCollection()
-                .whereEqualTo("userId", userId)
                 .get()
                 .get(10, TimeUnit.SECONDS)
 
@@ -107,7 +106,6 @@ class ProductionRepository(
      */
     fun listenToProductionRecords(): Flow<List<ProductionRecord>> = callbackFlow {
         val listener = getProductionCollection()
-            .whereEqualTo("userId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     close(error)

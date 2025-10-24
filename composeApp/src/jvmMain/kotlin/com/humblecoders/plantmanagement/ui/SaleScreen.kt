@@ -2,7 +2,14 @@
 package com.humblecoders.plantmanagement.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +43,8 @@ import com.humblecoders.plantmanagement.ui.components.CashInRevenueDialog
 import com.humblecoders.plantmanagement.ui.components.CashInOutDifferenceDialog
 import com.humblecoders.plantmanagement.ui.components.CashInHistoryDialog
 import com.humblecoders.plantmanagement.utils.PdfExportUtils
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun SaleScreen(
@@ -55,8 +64,11 @@ fun SaleScreen(
     var showCashInRevenueDialog by remember { mutableStateOf(false) }
     var showCashInOutDifferenceDialog by remember { mutableStateOf(false) }
     var showCashInHistoryDialog by remember { mutableStateOf(false) }
+    var isUploadingDocument by remember { mutableStateOf(false) }
+    var uploadingSaleId by remember { mutableStateOf<String?>(null) }
 
     val isAdmin = userRole == UserRole.ADMIN
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(saleState.successMessage, saleState.error) {
         if (saleState.successMessage != null || saleState.error != null) {
@@ -232,7 +244,7 @@ fun SaleScreen(
                             OutlinedTextField(
                                 value = saleState.searchQuery,
                                 onValueChange = { saleViewModel.updateSearchQuery(it) },
-                                placeholder = { Text("Search sales...", color = Color(0xFF9CA3AF)) },
+                                placeholder = { Text("Search...", color = Color(0xFF9CA3AF)) },
                                 leadingIcon = {
                                     Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF9CA3AF))
                                 },
@@ -324,6 +336,16 @@ fun SaleScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Scroll hint for desktop users
+                    if (saleViewModel.getFilteredAndSortedSales().isNotEmpty()) {
+                        Text(
+                            text = "💡 Tip: Drag the horizontal scrollbar at the bottom to move through the table",
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                    
                     SaleTable(
                         sales = saleViewModel.getFilteredAndSortedSales(),
                         onDeleteClick = {
@@ -334,7 +356,46 @@ fun SaleScreen(
                             saleToView = it
                             showViewDialog = true
                         },
-                        isAdmin = isAdmin
+                        isAdmin = isAdmin,
+                        isUploadingDocument = isUploadingDocument,
+                        uploadingSaleId = uploadingSaleId,
+                        onUploadDocument = { sale ->
+                            // Handle file picker on main thread first
+                            val fileChooser = javax.swing.JFileChooser()
+                            fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
+                                "Documents (Images, PDFs)", "jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"
+                            )
+                            val result = fileChooser.showOpenDialog(null)
+                            
+                            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+                                val selectedFile = fileChooser.selectedFile
+                                
+                                // Now handle upload in coroutine
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    try {
+                                        isUploadingDocument = true
+                                        uploadingSaleId = sale.id
+                                        
+                                        val uploadResult = storageService.uploadDocument(selectedFile, "sales")
+                                        
+                                        if (uploadResult.isSuccess) {
+                                            val documentUrl = uploadResult.getOrNull() ?: ""
+                                            val updatedImageUrls = sale.imageUrls + documentUrl
+                                            val updatedSale = sale.copy(imageUrls = updatedImageUrls)
+                                            saleViewModel.updateSale(sale.id, updatedSale)
+                                        } else {
+                                            println("Upload failed: ${uploadResult.exceptionOrNull()?.message}")
+                                        }
+                                    } catch (e: Exception) {
+                                        println("Upload error: ${e.message}")
+                                        e.printStackTrace()
+                                    } finally {
+                                        isUploadingDocument = false
+                                        uploadingSaleId = null
+                                    }
+                                }
+                            }
+                        }
                     )
                 }
             }
@@ -447,14 +508,38 @@ fun SaleTable(
     sales: List<Sale>,
     onDeleteClick: (Sale) -> Unit,
     onViewClick: (Sale) -> Unit,
-    isAdmin: Boolean
+    isAdmin: Boolean,
+    isUploadingDocument: Boolean,
+    uploadingSaleId: String?,
+    onUploadDocument: (Sale) -> Unit
 ) {
-    // Single horizontal scroll for the entire table
+    // Enhanced horizontal scroll with proper scrollbar for desktop compatibility
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
     
-    Column(
-        modifier = Modifier.horizontalScroll(scrollState)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = Color(0xFF374151),
+                shape = RoundedCornerShape(8.dp)
+            )
     ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Main scrollable content
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(scrollState)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(min = 1800.dp) // Ensure minimum width for horizontal scroll
+                ) {
         // Header Row
         Row(
             modifier = Modifier
@@ -463,20 +548,22 @@ fun SaleTable(
         ) {
             Text("Date", color = Color(0xFF9CA3AF), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Customer", color = Color(0xFF9CA3AF), modifier = Modifier.width(120.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("City", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Bill #", color = Color(0xFF9CA3AF), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Portal Batch", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Quantity", color = Color(0xFF9CA3AF), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Extra Qty", color = Color(0xFF9CA3AF), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Original Rate", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Discounted   Rate", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Total Portal Amount", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Revenue Amount", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Org Rate", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Offered Rate", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Portal Amt", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Revenue Amt", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Portal Pending", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Difference Amount", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Difference Pending", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Diff Amount", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Diff Pending", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Sale Status", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Diff Status", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("Deduct Inventory", color = Color(0xFF9CA3AF), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Deduct Inv", color = Color(0xFF9CA3AF), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Upload", color = Color(0xFF9CA3AF), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text("Actions", color = Color(0xFF9CA3AF), modifier = Modifier.width(100.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
@@ -492,6 +579,7 @@ fun SaleTable(
             ) {
                 Text(sale.saleDate, color = Color(0xFFF9FAFB), modifier = Modifier.width(80.dp), fontSize = 12.sp)
                 Text(sale.firmName, color = Color(0xFFF9FAFB), modifier = Modifier.width(120.dp), fontSize = 12.sp)
+                Text(sale.customerCity, color = Color(0xFFF9FAFB), modifier = Modifier.width(100.dp), fontSize = 12.sp)
                 Text(sale.billNumber, color = Color(0xFF10B981), modifier = Modifier.width(80.dp), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(sale.portalBatchNumber, color = Color(0xFFF9FAFB), modifier = Modifier.width(100.dp), fontSize = 12.sp)
                 Text("${String.format("%.2f", sale.quantityKg)} kg", color = Color(0xFFF9FAFB), modifier = Modifier.width(80.dp), fontSize = 12.sp)
@@ -557,6 +645,56 @@ fun SaleTable(
                     fontWeight = FontWeight.SemiBold
                 )
 
+                // Upload column
+                Box(
+                    modifier = Modifier.width(80.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (sale.imageUrls.isNotEmpty()) {
+                        IconButton(
+                            onClick = { onUploadDocument(sale) },
+                            enabled = !isUploadingDocument,
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            if (isUploadingDocument && uploadingSaleId == sale.id) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    color = Color(0xFF10B981),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Add more documents",
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        IconButton(
+                            onClick = { onUploadDocument(sale) },
+                            enabled = !isUploadingDocument,
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            if (isUploadingDocument && uploadingSaleId == sale.id) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    color = Color(0xFF06B6D4),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.CloudUpload,
+                                    contentDescription = "Upload document",
+                                    tint = Color(0xFF06B6D4),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Row(
                     modifier = Modifier.width(100.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -585,6 +723,51 @@ fun SaleTable(
                 contentAlignment = Alignment.Center
             ) {
                 Text("No sale records found", color = Color(0xFF9CA3AF))
+            }
+        }
+                }
+            }
+            
+            // Horizontal scrollbar at the bottom
+            if (scrollState.canScrollForward || scrollState.canScrollBackward) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(16.dp)
+                        .background(Color(0xFF374151))
+                        .padding(horizontal = 4.dp)
+                ) {
+                    val scrollProgress = if (scrollState.maxValue > 0) {
+                        (scrollState.value.toFloat() / scrollState.maxValue.toFloat()).coerceIn(0f, 1f)
+                    } else 0f
+                    
+                    val availableWidth = 200f // Approximate available width
+                    val scrollbarWidth = (availableWidth * 0.3f).coerceAtLeast(30f) // 30% of width, min 30dp
+                    val maxOffset = availableWidth - scrollbarWidth
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(scrollbarWidth.dp)
+                            .offset(x = (scrollProgress * maxOffset).dp)
+                            .background(
+                                Color(0xFF10B981),
+                                RoundedCornerShape(6.dp)
+                            )
+                            .pointerInput(scrollState) {
+                                detectDragGestures { _, dragAmount ->
+                                    val sensitivity = 2f
+                                    val newValue = (scrollState.value + dragAmount.x * sensitivity).coerceIn(
+                                        0f,
+                                        scrollState.maxValue.toFloat()
+                                    )
+                                    coroutineScope.launch {
+                                        scrollState.scrollTo(newValue.toInt())
+                                    }
+                                }
+                            }
+                    )
+                }
             }
         }
     }

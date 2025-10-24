@@ -5,6 +5,7 @@ import com.humblecoders.plantmanagement.data.PendingBill
 import com.humblecoders.plantmanagement.data.PendingBillStatus
 import com.humblecoders.plantmanagement.data.PendingBillTransaction
 import com.humblecoders.plantmanagement.data.PendingBillTransactionType
+import com.humblecoders.plantmanagement.data.PendingBillClearanceRecord
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
@@ -27,6 +28,9 @@ class PendingBillRepository(
     private fun getInventoryCollection() =
         firestore.collection("inventory")
 
+    private fun getPendingBillClearanceRecordsCollection() =
+        firestore.collection("pendingBillClearanceRecords")
+
     /**
      * Add a new pending bill using transaction for atomicity
      */
@@ -44,7 +48,6 @@ class PendingBillRepository(
                 if (pendingBill.deductFromInventory) {
                     // Get inventory document reference first
                     val inventoryQuery = getInventoryCollection()
-                        .whereEqualTo("userId", userId)
                         .whereEqualTo("name", "Fortified Rice")
                     
                     val inventorySnapshot = inventoryQuery.get().get(10, TimeUnit.SECONDS)
@@ -134,7 +137,6 @@ class PendingBillRepository(
     suspend fun getAllPendingBills(): Result<List<PendingBill>> = withContext(Dispatchers.IO) {
         return@withContext try {
             val snapshot = getPendingBillsCollection()
-                .whereEqualTo("userId", userId)
                 .get()
                 .get(10, TimeUnit.SECONDS)
 
@@ -190,7 +192,7 @@ class PendingBillRepository(
     /**
      * Clear a pending bill (partial or full)
      */
-    suspend fun clearBill(pendingBillId: String, clearedQuantity: Double): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun clearBill(pendingBillId: String, clearedQuantity: Double, customerName: String): Result<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {
             firestore.runTransaction { transaction ->
                 val pendingBillRef = getPendingBillsCollection().document(pendingBillId)
@@ -234,6 +236,18 @@ class PendingBillRepository(
                 )
                 transaction.set(transactionRef, transactionData)
                 
+                // Create clearance record entry
+                val clearanceRecordRef = getPendingBillClearanceRecordsCollection().document()
+                val clearanceRecordData = mapOf(
+                    "pendingBillId" to pendingBillId,
+                    "customerName" to customerName,
+                    "quantityCleared" to clearedQuantity,
+                    "clearanceDate" to java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
+                    "userId" to userId,
+                    "createdAt" to com.google.cloud.Timestamp.now()
+                )
+                transaction.set(clearanceRecordRef, clearanceRecordData)
+                
                 null
             }.get(10, TimeUnit.SECONDS)
 
@@ -262,7 +276,6 @@ class PendingBillRepository(
                     val quantityKg = pendingBillDoc.getDouble("quantityKg") ?: 0.0
                     
                     val fortifiedRiceInventoryRef = getInventoryCollection()
-                        .whereEqualTo("userId", userId)
                         .whereEqualTo("name", "Fortified Rice")
                         .get()
                         .get(10, TimeUnit.SECONDS)
@@ -387,6 +400,71 @@ class PendingBillRepository(
             }
 
             Result.success(transactions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Get all clearance records for pending bills
+     */
+    suspend fun getAllClearanceRecords(): Result<List<PendingBillClearanceRecord>> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val snapshot = getPendingBillClearanceRecordsCollection()
+                .orderBy("createdAt", com.google.cloud.firestore.Query.Direction.DESCENDING)
+                .get()
+                .get(10, TimeUnit.SECONDS)
+
+            val clearanceRecords = snapshot.documents.mapNotNull { doc ->
+                try {
+                    PendingBillClearanceRecord(
+                        id = doc.id,
+                        pendingBillId = doc.getString("pendingBillId") ?: "",
+                        customerName = doc.getString("customerName") ?: "",
+                        quantityCleared = doc.getDouble("quantityCleared") ?: 0.0,
+                        clearanceDate = doc.getString("clearanceDate") ?: "",
+                        userId = doc.getString("userId") ?: "",
+                        createdAt = doc.getTimestamp("createdAt")
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            Result.success(clearanceRecords)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Get clearance records for a specific pending bill
+     */
+    suspend fun getClearanceRecordsForBill(pendingBillId: String): Result<List<PendingBillClearanceRecord>> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val snapshot = getPendingBillClearanceRecordsCollection()
+                .whereEqualTo("pendingBillId", pendingBillId)
+                .orderBy("createdAt", com.google.cloud.firestore.Query.Direction.DESCENDING)
+                .get()
+                .get(10, TimeUnit.SECONDS)
+
+            val clearanceRecords = snapshot.documents.mapNotNull { doc ->
+                try {
+                    PendingBillClearanceRecord(
+                        id = doc.id,
+                        pendingBillId = doc.getString("pendingBillId") ?: "",
+                        customerName = doc.getString("customerName") ?: "",
+                        quantityCleared = doc.getDouble("quantityCleared") ?: 0.0,
+                        clearanceDate = doc.getString("clearanceDate") ?: "",
+                        userId = doc.getString("userId") ?: "",
+                        createdAt = doc.getTimestamp("createdAt")
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            Result.success(clearanceRecords)
         } catch (e: Exception) {
             Result.failure(e)
         }

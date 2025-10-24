@@ -6,8 +6,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -22,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.humblecoders.plantmanagement.data.*
+import com.humblecoders.plantmanagement.ui.components.SearchableCustomerDropdown
 import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import kotlinx.coroutines.launch
@@ -52,7 +55,12 @@ fun CashInOutDifferenceDialog(
             backgroundColor = Color(0xFF1F2937),
             elevation = 8.dp
         ) {
-            Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp)
+            ) {
                 // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -80,49 +88,18 @@ fun CashInOutDifferenceDialog(
                 }
 
                 // Customer Selection
-                Text("Select Customer", fontSize = 14.sp, color = Color(0xFF9CA3AF), modifier = Modifier.padding(bottom = 4.dp))
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { showEntityDropdown = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFFF9FAFB),
-                            backgroundColor = Color(0xFF374151)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = selectedEntity?.firmName ?: "Select Customer",
-                                modifier = Modifier.weight(1f),
-                                color = Color(0xFFF9FAFB)
-                            )
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFFF9FAFB))
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = showEntityDropdown,
-                        onDismissRequest = { showEntityDropdown = false },
-                        modifier = Modifier.width(300.dp).background(Color.White)
-                    ) {
-                        entities.forEach { entity ->
-                            DropdownMenuItem(onClick = {
-                                selectedEntity = entity
-                                showEntityDropdown = false
-                                allocations = emptyList()
-                                editableAllocations = emptyMap()
-                            }) {
-                                Text(text = entity.firmName, fontWeight = FontWeight.SemiBold, color = Color.Black)
-                            }
-                        }
-                    }
-                }
+                SearchableCustomerDropdown(
+                    customers = entities,
+                    selectedCustomerId = selectedEntity?.id ?: "",
+                    onCustomerSelected = { entityId ->
+                        selectedEntity = entities.find { it.id == entityId }
+                        allocations = emptyList()
+                        editableAllocations = emptyMap()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = "Select Customer",
+                    label = "Select Customer"
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -274,7 +251,7 @@ fun CashInOutDifferenceDialog(
                         Text("Allocated", color = Color(0xFFF9FAFB), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), fontSize = 14.sp)
                     }
 
-                    LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp).fillMaxWidth()) {
                         itemsIndexed(allocations) { index, allocation ->
                             val pendingAmount = if (allocation.differenceAmount < 0) {
                                 kotlin.math.abs(allocation.differenceAmount + allocation.previousAmountPaid)

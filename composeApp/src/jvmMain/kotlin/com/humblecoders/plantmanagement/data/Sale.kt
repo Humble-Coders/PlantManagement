@@ -10,6 +10,7 @@ data class Sale(
     val userId: String = "",
     val customerId: String = "",
     val firmName: String = "",
+    val customerCity: String = "",
     val saleDate: String = "",
     val billNumber: String = "",
     val portalBatchNumber: String = "",

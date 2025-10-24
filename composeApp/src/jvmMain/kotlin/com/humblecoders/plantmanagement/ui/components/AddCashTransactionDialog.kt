@@ -20,19 +20,24 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.launch
 import com.humblecoders.plantmanagement.data.CashReportCategory
 import com.humblecoders.plantmanagement.data.CashReportType
 import com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
+import com.humblecoders.plantmanagement.viewmodels.UserBalanceViewModel
+import com.humblecoders.plantmanagement.data.UserRole
 import java.time.LocalDate
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import java.io.File
 import javax.imageio.ImageIO
-import com.humblecoders.plantmanagement.utils.toComposeImageBitmap
+import com.humblecoders.plantmanagement.ui.components.DocumentUploadComponent
 
 @Composable
 fun AddCashTransactionDialog(
     cashReportViewModel: CashReportViewModel,
+    userBalanceViewModel: UserBalanceViewModel? = null,
+    userRole: UserRole? = null,
     onDismiss: () -> Unit
 ) {
     var transactionType by remember { mutableStateOf(CashReportType.CASH_IN) }
@@ -43,10 +48,10 @@ fun AddCashTransactionDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    var selectedImageFile by remember { mutableStateOf<File?>(null) }
-    var showImagePreview by remember { mutableStateOf(false) }
+    var selectedDocuments by remember { mutableStateOf<List<File>>(emptyList()) }
 
     val cashReportState = cashReportViewModel.cashReportState
+    val coroutineScope = rememberCoroutineScope()
 
     // Load categories when dialog opens
     LaunchedEffect(Unit) {
@@ -344,77 +349,21 @@ fun AddCashTransactionDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-// Image Upload Section
+                // Document Upload Section
                 Text(
-                    text = "Receipt/Bill Image (Optional)",
+                    text = "Receipt/Bill Documents (Optional)",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFF9FAFB),
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                Row(
+                DocumentUploadComponent(
+                    selectedDocuments = selectedDocuments,
+                    onDocumentsSelected = { files -> selectedDocuments = files },
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            val fileChooser = javax.swing.JFileChooser()
-                            fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
-                                "Image files", "jpg", "jpeg", "png", "gif"
-                            )
-                            val result = fileChooser.showOpenDialog(null)
-                            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
-                                selectedImageFile = fileChooser.selectedFile
-                            }
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFF3B82F6),
-                            backgroundColor = Color(0xFF1E3A8A).copy(alpha = 0.1f)
-                        ),
-                        border = BorderStroke(1.dp, Color(0xFF3B82F6)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Image,
-                            contentDescription = "Upload Image",
-                            modifier = Modifier.size(18.dp),
-                            tint = Color(0xFF3B82F6)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (selectedImageFile != null) "Change Image" else "Select Image",
-                            color = Color(0xFF3B82F6),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    if (selectedImageFile != null) {
-                        Text(
-                            text = selectedImageFile!!.name,
-                            color = Color(0xFF9CA3AF),
-                            fontSize = 12.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        IconButton(onClick = { showImagePreview = true }) {
-                            Icon(
-                                Icons.Default.Visibility,
-                                contentDescription = "Preview",
-                                tint = Color(0xFF3B82F6)
-                            )
-                        }
-
-                        IconButton(onClick = { selectedImageFile = null }) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "Remove",
-                                tint = Color(0xFFEF4444)
-                            )
-                        }
-                    }
-                }
+                    label = "Receipt/Bill Documents (Optional)"
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -447,14 +396,46 @@ fun AddCashTransactionDialog(
                                 return@Button
                             }
                             
-                            cashReportViewModel.addCashReport(
-                                transactionType = transactionType,
-                                categoryId = selectedCategory!!.id,
-                                amount = transactionAmount,
-                                date = selectedDate,
-                                notes = notes,
-                                imageFile = selectedImageFile
-                            )
+                            // Check if this is an accountant performing cash out transaction
+                            val isAccountantCashOut = userRole == UserRole.USER && transactionType == CashReportType.CASH_OUT
+                            
+                            if (isAccountantCashOut && userBalanceViewModel != null) {
+                                // Accountant performing cash out - subtract from accountant balance
+                                coroutineScope.launch {
+                                    userBalanceViewModel.processUserCashOutTransaction(
+                                        amount = transactionAmount,
+                                        notes = notes
+                                    )
+                                    
+                                    // Wait a bit for the transaction to complete
+                                    kotlinx.coroutines.delay(1000)
+                                    
+                                    // Check if there was an error
+                                    if (userBalanceViewModel.errorMessage != null) {
+                                        errorMessage = userBalanceViewModel.errorMessage
+                                    } else {
+                                        // Also add to cash report with accountant marking
+                                        cashReportViewModel.addCashReport(
+                                            transactionType = transactionType,
+                                            categoryId = selectedCategory!!.id, // Use the selected category
+                                            amount = transactionAmount,
+                                            date = selectedDate,
+                                            notes = notes,
+                                            documentFiles = selectedDocuments
+                                        )
+                                    }
+                                }
+                            } else {
+                                // Normal transaction (admin or cash in)
+                                cashReportViewModel.addCashReport(
+                                    transactionType = transactionType,
+                                    categoryId = selectedCategory!!.id,
+                                    amount = transactionAmount,
+                                    date = selectedDate,
+                                    notes = notes,
+                                    documentFiles = selectedDocuments
+                                )
+                            }
                         },
                         enabled = amount.isNotBlank() && selectedCategory != null && !cashReportState.isProcessing,
                         modifier = Modifier.weight(1f),
@@ -509,51 +490,6 @@ fun AddCashTransactionDialog(
                         )
                     ) {
                         Text("OK", color = Color.White)
-                    }
-                }
-            }
-        }
-    }
-
-    // Image Preview Dialog
-    if (showImagePreview && selectedImageFile != null) {
-        Dialog(onDismissRequest = { showImagePreview = false }) {
-            Card(
-                backgroundColor = Color(0xFF1F2937),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    val imageBitmap = remember(selectedImageFile) {
-                        try {
-                            val bufferedImage = ImageIO.read(selectedImageFile)
-                            bufferedImage.toComposeImageBitmap()
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
-                    
-                    if (imageBitmap != null) {
-                        Image(
-                            bitmap = imageBitmap,
-                            contentDescription = "Preview",
-                            modifier = Modifier.size(400.dp)
-                        )
-                    } else {
-                        Text("Could not load image", color = Color(0xFFEF4444))
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { showImagePreview = false },
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF10B981)
-                        )
-                    ) {
-                        Text("Close", color = Color.White)
                     }
                 }
             }
