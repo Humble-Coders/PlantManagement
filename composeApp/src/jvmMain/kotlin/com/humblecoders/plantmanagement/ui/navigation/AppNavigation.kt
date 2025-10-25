@@ -28,6 +28,7 @@ fun AppNavigation(
     pendingBillViewModel: com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel,
     noteViewModel: com.humblecoders.plantmanagement.viewmodels.NoteViewModel,
     userBalanceViewModel: com.humblecoders.plantmanagement.viewmodels.UserBalanceViewModel,
+    historyViewModel: com.humblecoders.plantmanagement.viewmodels.HistoryViewModel,
     storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     val authState = authViewModel.authState
@@ -70,6 +71,7 @@ fun AppNavigation(
                 pendingBillViewModel = pendingBillViewModel,
                 noteViewModel = noteViewModel,
                 userBalanceViewModel = userBalanceViewModel,
+                historyViewModel = historyViewModel,
                 storageService = storageService
             )
         }

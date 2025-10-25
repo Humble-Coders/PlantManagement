@@ -41,6 +41,7 @@ enum class MenuItem {
     REPORTS,
     USER_BALANCE_MANAGEMENT,
     USER_CASH_OUT,
+    HISTORY,
     PROFILE
 }
 
@@ -58,6 +59,7 @@ fun MainScreen(
     pendingBillViewModel: com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel,
     noteViewModel: com.humblecoders.plantmanagement.viewmodels.NoteViewModel,
     userBalanceViewModel: com.humblecoders.plantmanagement.viewmodels.UserBalanceViewModel,
+    historyViewModel: com.humblecoders.plantmanagement.viewmodels.HistoryViewModel,
     storageService: com.humblecoders.plantmanagement.services.FirebaseStorageService
 ) {
     var selectedMenuItem by remember { mutableStateOf(MenuItem.DASHBOARD) }
@@ -115,6 +117,7 @@ fun MainScreen(
                         MenuItem.CASH_REPORT -> CashReportsScreen(cashReportViewModel, userBalanceViewModel, user?.role) { }
                         MenuItem.EXPENSES -> ExpensesScreen(expenseViewModel, user?.role) { }
                         MenuItem.LEDGER -> LedgerScreen(entityViewModel, saleViewModel, purchaseViewModel, cashTransactionViewModel)
+                        MenuItem.HISTORY -> HistoryScreen(historyViewModel)
                         MenuItem.REMINDERS -> RemindersScreen(saleViewModel, entityViewModel, inventoryViewModel, storageService, user?.role)
                         MenuItem.NOTES -> NotesScreen(noteViewModel, user?.role)
                         MenuItem.USER_BALANCE_MANAGEMENT -> UserBalanceManagementScreen(userBalanceViewModel) { }
@@ -145,6 +148,7 @@ fun SidebarMenu(
         MenuItemData(MenuItem.CUSTOMERS, "Customers", Icons.Default.Person),
         MenuItemData(MenuItem.CASH_REPORT, "Cash Report", Icons.Default.AccountBalance),
         MenuItemData(MenuItem.LEDGER, "Ledger", Icons.Default.Menu),
+        MenuItemData(MenuItem.HISTORY, "History", Icons.Default.History),
         MenuItemData(MenuItem.REMINDERS, "Reminders", Icons.Default.Notifications),
         MenuItemData(MenuItem.NOTES, "Notes", Icons.Default.Create),
         MenuItemData(MenuItem.REPORTS, "Reports", Icons.Default.ThumbUp),
