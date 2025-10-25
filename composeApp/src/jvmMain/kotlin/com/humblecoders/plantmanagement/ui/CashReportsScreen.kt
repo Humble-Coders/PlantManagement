@@ -502,7 +502,7 @@ fun CashReportsScreen(
     if (showTransferBalanceDialog) {
         TransferBalanceDialog(
             onDismiss = { showTransferBalanceDialog = false },
-            onTransfer = { amount, transferType, notes ->
+            onTransfer = { amount: Double, transferType: BalanceTransferType, notes: String ->
                 coroutineScope.launch {
                     userBalanceViewModel.transferBalanceToSharedUserBalance(amount, transferType, notes)
                     showTransferBalanceDialog = false

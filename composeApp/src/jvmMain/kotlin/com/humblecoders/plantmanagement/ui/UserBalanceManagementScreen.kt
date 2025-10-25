@@ -172,7 +172,7 @@ fun UserBalanceManagementScreen(
 
     // Transfer Balance Dialog
     if (showTransferDialog) {
-        TransferBalanceDialog(
+        TransferBalanceDialog1(
             onDismiss = { showTransferDialog = false },
             onTransfer = { amount, transferType, notes ->
                 userBalanceViewModel.transferBalanceToSharedUserBalance(amount, transferType, notes)
@@ -209,7 +209,7 @@ fun UserBalanceManagementScreen(
 }
 
 @Composable
-fun TransferBalanceDialog(
+fun TransferBalanceDialog1(
     onDismiss: () -> Unit,
     onTransfer: (Double, BalanceTransferType, String) -> Unit
 ) {
