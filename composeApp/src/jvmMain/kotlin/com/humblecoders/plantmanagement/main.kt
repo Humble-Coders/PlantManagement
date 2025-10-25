@@ -24,11 +24,9 @@ import com.humblecoders.plantmanagement.repositories.NoteRepository
 import com.humblecoders.plantmanagement.repositories.ProductionRepository
 import com.humblecoders.plantmanagement.repositories.SaleRepository
 import com.humblecoders.plantmanagement.repositories.PendingBillRepository
-import com.humblecoders.plantmanagement.repositories.HistoryRepository
 import com.humblecoders.plantmanagement.repositories.UserBalanceRepository
 import com.humblecoders.plantmanagement.ui.navigation.AppNavigation
 import com.humblecoders.plantmanagement.viewmodels.AuthViewModel
-import com.humblecoders.plantmanagement.viewmodels.HistoryViewModel
 import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import com.humblecoders.plantmanagement.viewmodels.InventoryViewModel
 import com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
@@ -104,7 +102,6 @@ fun main() = application {
     var pendingBillViewModel: PendingBillViewModel? = null
     var noteViewModel: NoteViewModel? = null
     var userBalanceViewModel: UserBalanceViewModel? = null
-    var historyViewModel: HistoryViewModel? = null
 
 
 
@@ -163,17 +160,9 @@ fun main() = application {
             
             val userBalanceRepository = UserBalanceRepository(firestoreNonNull, currentUser.uid, appId)
             userBalanceViewModel = UserBalanceViewModel(userBalanceRepository, currentUser)
-            
-            val historyRepository = HistoryRepository(
-                saleRepository,
-                purchaseRepository,
-                cashTransactionRepository,
-                expenseRepository
-            )
-            historyViewModel = HistoryViewModel(historyRepository)
         }
 
-        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null && noteViewModel != null && pendingBillViewModel != null && userBalanceViewModel != null && historyViewModel != null) {
+        if (entityViewModel != null && purchaseViewModel != null && inventoryViewModel != null && cashTransactionViewModel != null && cashReportViewModel != null && productionViewModel != null && noteViewModel != null && pendingBillViewModel != null && userBalanceViewModel != null) {
             AppNavigation(
                 authViewModel = authViewModel,
                 entityViewModel = entityViewModel!!,
@@ -187,7 +176,6 @@ fun main() = application {
                 pendingBillViewModel = pendingBillViewModel!!,
                 noteViewModel = noteViewModel!!,
                 userBalanceViewModel = userBalanceViewModel!!,
-                historyViewModel = historyViewModel!!,
                 storageService = storageService
             )
         } else {
@@ -246,12 +234,6 @@ fun main() = application {
                 pendingBillViewModel = PendingBillViewModel(PendingBillRepository(firestoreNonNull, "", appId)),
                 noteViewModel = NoteViewModel(NoteRepository(firestoreNonNull, "", appId)),
                 userBalanceViewModel = UserBalanceViewModel(UserBalanceRepository(firestoreNonNull, "", appId), null),
-                historyViewModel = HistoryViewModel(HistoryRepository(
-                    SaleRepository(firestoreNonNull, "", appId),
-                    PurchaseRepository(firestoreNonNull, "", appId),
-                    CashTransactionRepository(firestoreNonNull, "", appId),
-                    ExpenseRepository(firestoreNonNull, storageService = storageService)
-                )),
                 storageService = storageService
             )
         }
