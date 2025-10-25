@@ -66,6 +66,10 @@ class ExpenseRepository(
         }
     }
 
+    suspend fun refreshExpenses(): Result<List<Expense>> {
+        return getExpenses()
+    }
+
     fun listenToExpenses(onUpdate: (List<Expense>) -> Unit) {
         expensesCollection
             .orderBy("date", Query.Direction.DESCENDING)
