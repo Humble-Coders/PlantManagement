@@ -1,8 +1,11 @@
 package com.humblecoders.plantmanagement.repositories
 
 import com.google.cloud.firestore.Firestore
+import com.google.cloud.firestore.ListenerRegistration
 import com.humblecoders.plantmanagement.data.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -13,6 +16,14 @@ class HistoryRepository(
     private val appId: String
 ) {
     
+    // Cache for all transactions
+    private val _allTransactions = MutableStateFlow<List<HistoryTransaction>>(emptyList())
+    val allTransactions: StateFlow<List<HistoryTransaction>> = _allTransactions
+    
+    // Listeners for real-time updates
+    private val listeners = mutableListOf<ListenerRegistration>()
+    private var isInitialized = false
+    
     private fun getSalesCollection() = firestore.collection("sales")
     private fun getPurchasesCollection() = firestore.collection("purchases")
     private fun getCashTransactionsCollection() = firestore.collection("cash_transactions")
@@ -21,39 +32,143 @@ class HistoryRepository(
     private fun getCashInOutDifferenceCollection() = firestore.collection("cash_in_out_difference")
 
     /**
-     * Get all transactions for a specific date
-     * Fetches all records from Firebase first, then filters by date in the app
+     * Initialize the cache and set up real-time listeners
+     * This should be called once when the repository is created
      */
-    suspend fun getTransactionsForDate(date: String): Result<DayHistory> = withContext(Dispatchers.IO) {
+    suspend fun initializeCache(): Result<Unit> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            if (isInitialized) {
+                return@withContext Result.success(Unit)
+            }
+            
+            // Initial fetch of all data
+            refreshAllData()
+            
+            // Set up real-time listeners
+            setupListeners()
+            
+            isInitialized = true
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Refresh all data from Firebase
+     * This can be called manually via refresh button
+     */
+    suspend fun refreshAllData(): Result<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {
             val transactions = mutableListOf<HistoryTransaction>()
             
-            // Get all sales (no date filtering on Firebase)
+            // Get all sales
             val sales = getAllSales()
             transactions.addAll(sales.map { convertSaleToHistoryTransaction(it) })
             
-            // Get all purchases (no date filtering on Firebase)
+            // Get all purchases
             val purchases = getAllPurchases()
             transactions.addAll(purchases.map { convertPurchaseToHistoryTransaction(it) })
             
-            // Get all cash transactions (no date filtering on Firebase)
+            // Get all cash transactions
             val cashTransactions = getAllCashTransactions()
             transactions.addAll(cashTransactions.map { convertCashTransactionToHistoryTransaction(it) })
             
-            // Get all cash out transactions (no date filtering on Firebase)
+            // Get all cash out transactions
             val cashOuts = getAllCashOut()
             transactions.addAll(cashOuts.map { convertCashOutToHistoryTransaction(it) })
             
-            // Get all cash in revenue (no date filtering on Firebase)
+            // Get all cash in revenue
             val cashInRevenue = getAllCashInRevenue()
             transactions.addAll(cashInRevenue.map { convertCashInRevenueToHistoryTransaction(it) })
             
-            // Get all cash in/out difference (no date filtering on Firebase)
+            // Get all cash in/out difference
             val cashInOutDifference = getAllCashInOutDifference()
             transactions.addAll(cashInOutDifference.map { convertCashInOutDifferenceToHistoryTransaction(it) })
             
+            // Update cache
+            _allTransactions.value = transactions
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Set up real-time listeners for all collections
+     */
+    private fun setupListeners() {
+        // Clear existing listeners
+        listeners.forEach { it.remove() }
+        listeners.clear()
+        
+        // Sales listener
+        listeners.add(
+            getSalesCollection()
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    snapshot?.let { refreshSalesData(it.documents) }
+                }
+        )
+        
+        // Purchases listener
+        listeners.add(
+            getPurchasesCollection()
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    snapshot?.let { refreshPurchasesData(it.documents) }
+                }
+        )
+        
+        // Cash transactions listener
+        listeners.add(
+            getCashTransactionsCollection()
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    snapshot?.let { refreshCashTransactionsData(it.documents) }
+                }
+        )
+        
+        // Cash out listener
+        listeners.add(
+            getCashOutCollection()
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    snapshot?.let { refreshCashOutData(it.documents) }
+                }
+        )
+        
+        // Cash in revenue listener
+        listeners.add(
+            getCashInRevenueCollection()
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    snapshot?.let { refreshCashInRevenueData(it.documents) }
+                }
+        )
+        
+        // Cash in/out difference listener
+        listeners.add(
+            getCashInOutDifferenceCollection()
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    snapshot?.let { refreshCashInOutDifferenceData(it.documents) }
+                }
+        )
+    }
+
+    /**
+     * Get all transactions for a specific date
+     * Uses cached data and filters by date in the app
+     */
+    suspend fun getTransactionsForDate(date: String): Result<DayHistory> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            // Use cached data instead of fetching from Firebase
+            val allTransactions = _allTransactions.value
+            
             // Filter transactions by date in the app
-            val filteredTransactions = filterTransactionsByDate(transactions, date)
+            val filteredTransactions = filterTransactionsByDate(allTransactions, date)
             
             // Sort transactions by creation time
             val sortedTransactions = filteredTransactions.sortedBy { it.createdAt?.seconds ?: 0L }
@@ -71,6 +186,105 @@ class HistoryRepository(
         }
     }
 
+    /**
+     * Refresh methods for real-time updates
+     */
+    private fun refreshSalesData(documents: List<com.google.cloud.firestore.DocumentSnapshot>) {
+        val sales = documents.mapNotNull { doc ->
+            try {
+                val sale = doc.toObject(Sale::class.java)
+                sale?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        updateCacheWithNewData(sales.map { convertSaleToHistoryTransaction(it) })
+    }
+
+    private fun refreshPurchasesData(documents: List<com.google.cloud.firestore.DocumentSnapshot>) {
+        val purchases = documents.mapNotNull { doc ->
+            try {
+                val purchase = doc.toObject(Purchase::class.java)
+                purchase?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        updateCacheWithNewData(purchases.map { convertPurchaseToHistoryTransaction(it) })
+    }
+
+    private fun refreshCashTransactionsData(documents: List<com.google.cloud.firestore.DocumentSnapshot>) {
+        val cashTransactions = documents.mapNotNull { doc ->
+            try {
+                val cashTransaction = doc.toObject(CashTransaction::class.java)
+                cashTransaction?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        updateCacheWithNewData(cashTransactions.map { convertCashTransactionToHistoryTransaction(it) })
+    }
+
+    private fun refreshCashOutData(documents: List<com.google.cloud.firestore.DocumentSnapshot>) {
+        val cashOuts = documents.mapNotNull { doc ->
+            try {
+                val cashOut = doc.toObject(CashOut::class.java)
+                cashOut?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        updateCacheWithNewData(cashOuts.map { convertCashOutToHistoryTransaction(it) })
+    }
+
+    private fun refreshCashInRevenueData(documents: List<com.google.cloud.firestore.DocumentSnapshot>) {
+        val cashInRevenue = documents.mapNotNull { doc ->
+            try {
+                val cashInRevenue = doc.toObject(CashInRevenue::class.java)
+                cashInRevenue?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        updateCacheWithNewData(cashInRevenue.map { convertCashInRevenueToHistoryTransaction(it) })
+    }
+
+    private fun refreshCashInOutDifferenceData(documents: List<com.google.cloud.firestore.DocumentSnapshot>) {
+        val cashInOutDifference = documents.mapNotNull { doc ->
+            try {
+                val cashInOutDifference = doc.toObject(CashInOutDifference::class.java)
+                cashInOutDifference?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        updateCacheWithNewData(cashInOutDifference.map { convertCashInOutDifferenceToHistoryTransaction(it) })
+    }
+
+    private fun updateCacheWithNewData(newTransactions: List<HistoryTransaction>) {
+        val currentTransactions = _allTransactions.value.toMutableList()
+        
+        // Remove old transactions of the same type
+        val transactionTypes = newTransactions.map { it.transactionType }.distinct()
+        transactionTypes.forEach { type ->
+            currentTransactions.removeAll { it.transactionType == type }
+        }
+        
+        // Add new transactions
+        currentTransactions.addAll(newTransactions)
+        
+        // Update cache
+        _allTransactions.value = currentTransactions
+    }
+
+    /**
+     * Clean up listeners when repository is no longer needed
+     */
+    fun cleanup() {
+        listeners.forEach { it.remove() }
+        listeners.clear()
+        isInitialized = false
+    }
 
     private suspend fun getAllSales(): List<Sale> {
         return try {

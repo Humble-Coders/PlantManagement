@@ -44,15 +44,48 @@ fun HistoryScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Header
-            Text(
-                text = "Transaction History",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFF9FAFB)
-            )
+            // Header with title and refresh button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Transaction History",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF9FAFB)
+                )
+                
+                // Small refresh button
+                Button(
+                    onClick = { historyViewModel.refreshData() },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF10B981),
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.size(40.dp),
+                    enabled = !historyState.isRefreshing,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    if (historyState.isRefreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Date Picker Section
             DatePickerSection(
@@ -62,7 +95,6 @@ fun HistoryScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
 
             // Error/Success Messages
             historyState.error?.let { error ->

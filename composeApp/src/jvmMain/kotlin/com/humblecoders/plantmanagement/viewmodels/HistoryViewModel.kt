@@ -9,6 +9,7 @@ import com.humblecoders.plantmanagement.data.HistoryTransactionType
 import com.humblecoders.plantmanagement.repositories.HistoryRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -17,8 +18,10 @@ data class HistoryState(
     val selectedDate: String = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
     val dayHistory: DayHistory? = null,
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val error: String? = null,
-    val successMessage: String? = null
+    val successMessage: String? = null,
+    val isInitialized: Boolean = false
 )
 
 class HistoryViewModel(
@@ -29,13 +32,100 @@ class HistoryViewModel(
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
 
+    init {
+        initializeCache()
+    }
+
     fun selectDate(date: String) {
         historyState = historyState.copy(selectedDate = date)
         loadHistoryForDate(date)
     }
 
+    /**
+     * Initialize the cache and set up real-time listeners
+     */
+    private fun initializeCache() {
+        coroutineScope.launch {
+            historyState = historyState.copy(isLoading = true, error = null)
+            try {
+                val result = historyRepository.initializeCache()
+                result.fold(
+                    onSuccess = {
+                        historyState = historyState.copy(
+                            isLoading = false,
+                            isInitialized = true
+                        )
+                        // Load initial data for today
+                        loadHistoryForDate(historyState.selectedDate)
+                    },
+                    onFailure = { exception ->
+                        historyState = historyState.copy(
+                            isLoading = false,
+                            error = exception.message ?: "Failed to initialize cache"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                historyState = historyState.copy(
+                    isLoading = false,
+                    error = e.message ?: "Failed to initialize cache"
+                )
+            }
+        }
+    }
+
+    /**
+     * Refresh all data from Firebase
+     */
+    fun refreshData() {
+        coroutineScope.launch {
+            historyState = historyState.copy(isRefreshing = true, error = null)
+            try {
+                val result = historyRepository.refreshAllData()
+                result.fold(
+                    onSuccess = {
+                        historyState = historyState.copy(
+                            isRefreshing = false,
+                            successMessage = "Data refreshed successfully"
+                        )
+                        // Reload current date data
+                        loadHistoryForDate(historyState.selectedDate)
+                    },
+                    onFailure = { exception ->
+                        historyState = historyState.copy(
+                            isRefreshing = false,
+                            error = exception.message ?: "Failed to refresh data"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                historyState = historyState.copy(
+                    isRefreshing = false,
+                    error = e.message ?: "Failed to refresh data"
+                )
+            }
+        }
+    }
+
+    /**
+     * Clear success message
+     */
+    fun clearSuccessMessage() {
+        historyState = historyState.copy(successMessage = null)
+    }
+
+    /**
+     * Clear error message
+     */
+    fun clearError() {
+        historyState = historyState.copy(error = null)
+    }
+
     fun loadHistoryForDate(date: String) {
-        historyState = historyState.copy(isLoading = true, error = null)
+        // Only show loading if not initialized yet
+        if (!historyState.isInitialized) {
+            historyState = historyState.copy(isLoading = true, error = null)
+        }
         
         coroutineScope.launch {
             try {
@@ -68,12 +158,11 @@ class HistoryViewModel(
         loadHistoryForDate(historyState.selectedDate)
     }
 
-    fun clearError() {
-        historyState = historyState.copy(error = null)
-    }
-
-    fun clearSuccessMessage() {
-        historyState = historyState.copy(successMessage = null)
+    /**
+     * Clean up resources when ViewModel is no longer needed
+     */
+    fun cleanup() {
+        historyRepository.cleanup()
     }
 
     fun getFilteredTransactions(): List<HistoryTransaction> {
