@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.humblecoders.plantmanagement.utils.FileDialogUtils
 import java.io.File
 
 @Composable
@@ -40,24 +41,23 @@ fun DocumentUploadComponent(
         // Document selection button
         OutlinedButton(
             onClick = {
-                val fileChooser = javax.swing.JFileChooser()
-                fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
-                    "Documents (Images, PDFs, Word docs)", 
-                    *allowedExtensions.toTypedArray()
+                val selectedFiles = FileDialogUtils.showOpenDialog(
+                    title = "Select Documents",
+                    allowedExtensions = allowedExtensions,
+                    allowMultiple = true
                 )
-                fileChooser.isMultiSelectionEnabled = true
                 
-                val result = fileChooser.showOpenDialog(null)
-                if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
-                    val selectedFiles = fileChooser.selectedFiles.toList()
+                if (selectedFiles.isNotEmpty()) {
                     val validFiles = selectedFiles.filter { file ->
                         val extension = file.extension.lowercase()
-                        extension in allowedExtensions
+                        extension in allowedExtensions.map { it.lowercase() }
                     }
                     
                     // Limit to maxFiles
                     val filesToAdd = validFiles.take(maxFiles - selectedDocuments.size)
-                    onDocumentsSelected(selectedDocuments + filesToAdd)
+                    if (filesToAdd.isNotEmpty()) {
+                        onDocumentsSelected(selectedDocuments + filesToAdd)
+                    }
                 }
             },
             enabled = selectedDocuments.size < maxFiles,

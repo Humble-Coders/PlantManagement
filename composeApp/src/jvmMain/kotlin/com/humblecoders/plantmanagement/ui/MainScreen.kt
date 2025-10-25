@@ -100,7 +100,11 @@ fun MainScreen(
                 }
                 else -> {
                     when (selectedMenuItem) {
-                        MenuItem.DASHBOARD -> DashboardContent()
+                        MenuItem.DASHBOARD -> DashboardContent(
+                            productionViewModel = productionViewModel,
+                            inventoryViewModel = inventoryViewModel,
+                            cashReportViewModel = cashReportViewModel
+                        )
                         MenuItem.PRODUCTION -> ProductionScreen(productionViewModel, inventoryViewModel, user?.role)
                         MenuItem.INVENTORY -> InventoryScreen(inventoryViewModel, user?.role)
                         MenuItem.CUSTOMERS -> EntityScreen(
@@ -274,7 +278,38 @@ fun MenuItemRow(
 }
 
 @Composable
-fun DashboardContent() {
+fun DashboardContent(
+    productionViewModel: com.humblecoders.plantmanagement.viewmodels.ProductionViewModel,
+    inventoryViewModel: com.humblecoders.plantmanagement.viewmodels.InventoryViewModel,
+    cashReportViewModel: com.humblecoders.plantmanagement.viewmodels.CashReportViewModel
+) {
+    val productionRecords = productionViewModel.productionState.productionRecords
+    val inventoryItems = inventoryViewModel.getFilteredItems()
+    val cashReports = cashReportViewModel.cashReportState.cashReports
+    
+    // Calculate total FRK produced
+    val totalFrkProduced = productionRecords.sumOf { it.quantityProduced }
+    
+    // Find Fortified Rice in stock
+    val fortifiedRiceItem = inventoryItems.find { 
+        it.name.equals("Fortified Rice", ignoreCase = true) || 
+        it.name.equals("FRK", ignoreCase = true) ||
+        it.name.equals("Fortified Rice Kernels", ignoreCase = true)
+    }
+    val frkInStock = fortifiedRiceItem?.quantity ?: 0.0
+    
+    // Calculate total production losses
+    val totalWastage = productionRecords.sumOf { it.wasteTracking?.wastage ?: 0.0 }
+    val totalBurn = productionRecords.sumOf { it.wasteTracking?.burn ?: 0.0 }
+    val totalRegrind = productionRecords.sumOf { it.wasteTracking?.regrind ?: 0.0 }
+    val totalOthers = productionRecords.sumOf { it.wasteTracking?.others ?: 0.0 }
+    val totalProductionLosses = totalWastage + totalBurn + totalRegrind + totalOthers
+    
+    // Calculate cash flow summary
+    val totalCashIn = cashReports.filter { it.transactionType == com.humblecoders.plantmanagement.data.CashReportType.CASH_IN }.sumOf { it.amount }
+    val totalCashOut = cashReports.filter { it.transactionType == com.humblecoders.plantmanagement.data.CashReportType.CASH_OUT }.sumOf { it.amount }
+    val netCash = totalCashIn - totalCashOut
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -294,51 +329,30 @@ fun DashboardContent() {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             MetricCard(
-                title = "FRK Produced",
-                value = "0.00 kg",
+                title = "Total FRK Produced",
+                value = "${String.format("%.2f", totalFrkProduced)} kg",
                 color = Color(0xFF10B981),
                 modifier = Modifier.weight(1f)
             )
 
             MetricCard(
                 title = "FRK in Stock",
-                value = "0.00 kg",
+                value = "${String.format("%.2f", frkInStock)} kg",
                 color = Color(0xFF3B82F6),
                 modifier = Modifier.weight(1f)
             )
 
             MetricCard(
-                title = "Total Billed Portal Amount",
-                value = "₹ 0.00",
-                color = Color(0xFF8B5CF6),
+                title = "Total Production Losses",
+                value = "${String.format("%.2f", totalProductionLosses)} kg",
+                color = Color(0xFFEF4444),
                 modifier = Modifier.weight(1f)
             )
 
             MetricCard(
-                title = "Total Sales Revenue",
-                value = "₹ 0.00",
-                color = Color(0xFF10B981),
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            MetricCard(
-                title = "Total Pending Portal Amount",
-                value = "₹ 0.00",
-                color = Color(0xFFF59E0B),
-                modifier = Modifier.weight(1f)
-            )
-
-            MetricCard(
-                title = "Net Outstanding Balance",
-                value = "₹ 0.00",
-                color = Color(0xFF06B6D4),
+                title = "Net Cash Flow",
+                value = "₹ ${String.format("%.2f", netCash)}",
+                color = if (netCash >= 0) Color(0xFF10B981) else Color(0xFFEF4444),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -350,30 +364,21 @@ fun DashboardContent() {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             InfoCard(
-                title = "Production Losses",
+                title = "Production Losses Breakdown",
                 items = listOf(
-                    "Wastage: 0.00 kg",
-                    "Burn: 0.00 kg",
-                    "Regrind: 0.00 kg"
+                    "Wastage: ${String.format("%.2f", totalWastage)} kg",
+                    "Burn: ${String.format("%.2f", totalBurn)} kg",
+                    "Regrind: ${String.format("%.2f", totalRegrind)} kg",
+                    "Others: ${String.format("%.2f", totalOthers)} kg"
                 ),
                 modifier = Modifier.weight(1f)
             )
 
-            InfoCard(
+            CashFlowInfoCard(
                 title = "Cash Flow Summary",
-                items = listOf(
-                    "Cash In: ₹ 0.00",
-                    "Cash Out: ₹ 0.00",
-                    "Net Cash: ₹ 0.00"
-                ),
-                modifier = Modifier.weight(1f)
-            )
-
-            InfoCard(
-                title = "Total Customers",
-                items = listOf(
-                    "0 customers"
-                ),
+                cashIn = totalCashIn,
+                cashOut = totalCashOut,
+                netCash = netCash,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -447,6 +452,62 @@ fun InfoCard(
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun CashFlowInfoCard(
+    title: String,
+    cashIn: Double,
+    cashOut: Double,
+    netCash: Double,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        backgroundColor = Color(0xFF1F2937),
+        shape = RoundedCornerShape(12.dp),
+        elevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            Text(
+                text = title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFFF9FAFB)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Cash In - Green
+            Text(
+                text = "Cash In: ₹ ${String.format("%.2f", cashIn)}",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF10B981), // Green color
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+
+            // Cash Out - Red
+            Text(
+                text = "Cash Out: ₹ ${String.format("%.2f", cashOut)}",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFEF4444), // Red color
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+
+            // Net Cash - Green if positive, Red if negative
+            Text(
+                text = "Net Cash: ₹ ${String.format("%.2f", netCash)}",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (netCash >= 0) Color(0xFF10B981) else Color(0xFFEF4444),
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
         }
     }
 }

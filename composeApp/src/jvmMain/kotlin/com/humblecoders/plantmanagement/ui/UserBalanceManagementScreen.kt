@@ -22,11 +22,10 @@ import androidx.compose.ui.window.Dialog
 import com.humblecoders.plantmanagement.data.*
 import com.humblecoders.plantmanagement.viewmodels.UserBalanceViewModel
 import com.humblecoders.plantmanagement.services.UserBalancePdfService
+import com.humblecoders.plantmanagement.utils.FileDialogUtils
 import java.text.SimpleDateFormat
 import java.util.*
 import java.io.File
-import javax.swing.JFileChooser
-import javax.swing.filechooser.FileNameExtensionFilter
 
 @Composable
 fun UserBalanceManagementScreen(
@@ -668,15 +667,15 @@ private fun exportToPdf(
             filterInfo = "Shared User Balance Report"
         )
         
-        val fileChooser = JFileChooser()
-        fileChooser.dialogTitle = "Save User Balance Report"
-        fileChooser.selectedFile = File("UserBalanceReport_${System.currentTimeMillis()}.pdf")
-        fileChooser.fileFilter = FileNameExtensionFilter("PDF Files", "pdf")
+        val outputFile = FileDialogUtils.showSaveDialog(
+            title = "Save User Balance Report",
+            defaultFilename = "UserBalanceReport_${System.currentTimeMillis()}.pdf",
+            allowedExtensions = listOf("pdf")
+        )
         
-        if (fileChooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
-            val selectedFile = fileChooser.selectedFile
-            selectedFile.writeBytes(pdfBytes)
-            println("PDF exported successfully to: ${selectedFile.absolutePath}")
+        if (outputFile != null) {
+            outputFile.writeBytes(pdfBytes)
+            println("PDF exported successfully to: ${outputFile.absolutePath}")
         }
     } catch (e: Exception) {
         println("Error exporting PDF: ${e.message}")

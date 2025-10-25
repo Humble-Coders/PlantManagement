@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.humblecoders.plantmanagement.utils.FileDialogUtils
 import org.jetbrains.compose.resources.painterResource
 import java.io.File
 
@@ -46,17 +47,16 @@ fun ImageUploadComponent(
         // Add Image Button
         OutlinedButton(
             onClick = {
-                val fileChooser = javax.swing.JFileChooser()
-                fileChooser.dialogTitle = "Select Images"
-                fileChooser.currentDirectory = java.io.File(System.getProperty("user.home"))
-                fileChooser.isMultiSelectionEnabled = true
-                fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
-                    "Image files", "jpg", "jpeg", "png", "gif", "bmp", "webp"
+                val selectedFiles = FileDialogUtils.showOpenDialog(
+                    title = "Select Images",
+                    defaultDirectory = File(System.getProperty("user.home")),
+                    allowedExtensions = listOf("jpg", "jpeg", "png", "gif", "bmp", "webp"),
+                    allowMultiple = true
                 )
-                val result = fileChooser.showOpenDialog(null)
-                if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+                
+                if (selectedFiles.isNotEmpty()) {
                     val newImages = selectedImages.toMutableList()
-                    newImages.addAll(fileChooser.selectedFiles.toList())
+                    newImages.addAll(selectedFiles)
                     onImagesSelected(newImages)
                 }
             },

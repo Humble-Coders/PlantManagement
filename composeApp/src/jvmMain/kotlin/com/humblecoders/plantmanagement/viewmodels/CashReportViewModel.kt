@@ -65,6 +65,12 @@ class CashReportViewModel(
     var cashReportState by mutableStateOf(CashReportState())
         private set
 
+    init {
+        // Start listening to cash reports automatically
+        listenToCashReports()
+        loadCategories()
+    }
+
     fun addCashReport(
         transactionType: CashReportType,
         categoryId: String,

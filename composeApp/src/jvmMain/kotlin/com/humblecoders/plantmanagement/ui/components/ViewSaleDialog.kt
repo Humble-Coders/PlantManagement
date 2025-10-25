@@ -24,6 +24,7 @@ import com.humblecoders.plantmanagement.data.SaleStatus
 import com.humblecoders.plantmanagement.data.DiscountType
 import com.humblecoders.plantmanagement.services.SalePdfGeneratorService
 import com.humblecoders.plantmanagement.ui.DetailRow
+import com.humblecoders.plantmanagement.utils.FileDialogUtils
 import kotlinx.coroutines.launch
 
 @Composable
@@ -67,16 +68,14 @@ fun ViewSaleDialog(
                                         isGeneratingPdf = true
                                     }
                                     try {
+                                        val defaultFileName = "Sale_${sale.billNumber.replace(" ", "_")}_${sale.firmName.replace(" ", "_")}.pdf"
+                                        
                                         val outputFile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                            val fileChooser = javax.swing.JFileChooser()
-                                            fileChooser.dialogTitle = "Save Sale Bill"
-                                            val defaultFileName = "Sale_${sale.billNumber.replace(" ", "_")}_${sale.firmName.replace(" ", "_")}.pdf"
-                                            fileChooser.selectedFile = java.io.File(defaultFileName)
-
-                                            val result = fileChooser.showSaveDialog(null)
-
-                                            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
-                                                val selectedFile = fileChooser.selectedFile
+                                            FileDialogUtils.showSaveDialog(
+                                                title = "Save Sale Bill",
+                                                defaultFilename = defaultFileName,
+                                                allowedExtensions = listOf("pdf")
+                                            )?.let { selectedFile ->
                                                 val finalFile = if (!selectedFile.name.endsWith(".pdf", ignoreCase = true)) {
                                                     java.io.File(selectedFile.parent, "${selectedFile.name}.pdf")
                                                 } else {
@@ -88,8 +87,6 @@ fun ViewSaleDialog(
                                                 }
 
                                                 finalFile
-                                            } else {
-                                                null
                                             }
                                         }
 

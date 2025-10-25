@@ -42,6 +42,7 @@ import com.humblecoders.plantmanagement.ui.components.ViewSaleDialog
 import com.humblecoders.plantmanagement.ui.components.CashInRevenueDialog
 import com.humblecoders.plantmanagement.ui.components.CashInOutDifferenceDialog
 import com.humblecoders.plantmanagement.ui.components.CashInHistoryDialog
+import com.humblecoders.plantmanagement.utils.FileDialogUtils
 import com.humblecoders.plantmanagement.utils.PdfExportUtils
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -361,14 +362,14 @@ fun SaleScreen(
                         uploadingSaleId = uploadingSaleId,
                         onUploadDocument = { sale ->
                             // Handle file picker on main thread first
-                            val fileChooser = javax.swing.JFileChooser()
-                            fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
-                                "Documents (Images, PDFs)", "jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"
+                            val selectedFiles = FileDialogUtils.showOpenDialog(
+                                title = "Select Document to Upload",
+                                allowedExtensions = listOf("jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"),
+                                allowMultiple = false
                             )
-                            val result = fileChooser.showOpenDialog(null)
                             
-                            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
-                                val selectedFile = fileChooser.selectedFile
+                            if (selectedFiles.isNotEmpty()) {
+                                val selectedFile = selectedFiles.first()
                                 
                                 // Now handle upload in coroutine
                                 coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {

@@ -33,6 +33,7 @@ import com.humblecoders.plantmanagement.ui.components.DatePicker
 import com.humblecoders.plantmanagement.ui.components.SearchableCustomerDropdown
 import com.humblecoders.plantmanagement.ui.components.SearchableItemDropdown
 import com.humblecoders.plantmanagement.services.FirebaseStorageService
+import com.humblecoders.plantmanagement.utils.FileDialogUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -351,14 +352,14 @@ fun PurchaseScreen(
                     uploadingPurchaseId = uploadingPurchaseId,
                     onUploadDocument = { purchase ->
                         // Handle file picker on main thread first
-                        val fileChooser = javax.swing.JFileChooser()
-                        fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
-                            "Documents (Images, PDFs)", "jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"
+                        val selectedFiles = FileDialogUtils.showOpenDialog(
+                            title = "Select Document to Upload",
+                            allowedExtensions = listOf("jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"),
+                            allowMultiple = false
                         )
-                        val result = fileChooser.showOpenDialog(null)
                         
-                        if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
-                            val selectedFile = fileChooser.selectedFile
+                        if (selectedFiles.isNotEmpty()) {
+                            val selectedFile = selectedFiles.first()
                             
                             // Now handle upload in coroutine
                             coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -975,13 +976,13 @@ fun AddPurchaseDialog(
                             ) {
                                 OutlinedButton(
                                     onClick = {
-                                        val fileChooser = javax.swing.JFileChooser()
-                                        fileChooser.fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
-                                            "Documents (Images, PDFs)", "jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"
+                                        val selectedFiles = FileDialogUtils.showOpenDialog(
+                                            title = "Select Document",
+                                            allowedExtensions = listOf("jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"),
+                                            allowMultiple = false
                                         )
-                                        val result = fileChooser.showOpenDialog(null)
-                                        if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
-                                            selectedDocumentFile = fileChooser.selectedFile
+                                        if (selectedFiles.isNotEmpty()) {
+                                            selectedDocumentFile = selectedFiles.first()
                                         }
                                     },
                                     colors = ButtonDefaults.outlinedButtonColors(
@@ -1264,20 +1265,14 @@ fun ViewPurchaseDialog(
                                         isGeneratingPdf = true
                                     }
                                     try {
+                                        val defaultFileName = "Purchase_${purchase.firmName.replace(" ", "_")}_${purchase.purchaseDate}.pdf"
+                                        
                                         val outputFile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                            val fileChooser = javax.swing.JFileChooser()
-                                            fileChooser.dialogTitle = "Save Purchase Bill"
-                                            val defaultFileName = "Purchase_${purchase.firmName.replace(" ", "_")}_${purchase.purchaseDate}.pdf"
-                                            fileChooser.selectedFile = java.io.File(defaultFileName)
-                                            
-                                            // Enable file overwrite without confirmation
-                                            fileChooser.fileSelectionMode = javax.swing.JFileChooser.FILES_ONLY
-                                            fileChooser.approveButtonText = "Save"
-                                            
-                                            val result = fileChooser.showSaveDialog(null)
-                                            
-                                            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
-                                                val selectedFile = fileChooser.selectedFile
+                                            FileDialogUtils.showSaveDialog(
+                                                title = "Save Purchase Bill",
+                                                defaultFilename = defaultFileName,
+                                                allowedExtensions = listOf("pdf")
+                                            )?.let { selectedFile ->
                                                 // Ensure .pdf extension
                                                 val finalFile = if (!selectedFile.name.endsWith(".pdf", ignoreCase = true)) {
                                                     java.io.File(selectedFile.parent, "${selectedFile.name}.pdf")
@@ -1291,8 +1286,6 @@ fun ViewPurchaseDialog(
                                                 }
                                                 
                                                 finalFile
-                                            } else {
-                                                null
                                             }
                                         }
                                         
