@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,9 +20,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.humblecoders.plantmanagement.data.*
 import com.humblecoders.plantmanagement.ui.components.DatePicker
+import com.humblecoders.plantmanagement.utils.FileDialogUtils
 import com.humblecoders.plantmanagement.viewmodels.PendingBillViewModel
 import com.humblecoders.plantmanagement.viewmodels.PendingBillSortField
 import com.humblecoders.plantmanagement.viewmodels.SortDirection
+import java.awt.Desktop
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -68,7 +72,7 @@ fun PendingBillHistoryScreen(
                     )
                 ) {
                     Icon(
-                        Icons.Default.ArrowBack,
+                        Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = Color(0xFF9CA3AF)
                     )
@@ -90,6 +94,51 @@ fun PendingBillHistoryScreen(
                     fontSize = 16.sp,
                     color = Color(0xFF9CA3AF)
                 )
+                
+                IconButton(
+                    onClick = { 
+                        try {
+                            val pdfBytes = pendingBillViewModel.generatePdfReport()
+                            val fileName = "pending_bill_report_${System.currentTimeMillis()}.pdf"
+                            val file = FileDialogUtils.showSaveDialog(
+                                title = "Save Pending Bill Report",
+                                defaultFilename = fileName,
+                                allowedExtensions = listOf("pdf")
+                            )
+                            
+                            if (file != null) {
+                                file.writeBytes(pdfBytes)
+                                
+                                // Open the PDF file after saving
+                                try {
+                                    if (Desktop.isDesktopSupported()) {
+                                        Desktop.getDesktop().open(file)
+                                    }
+                                } catch (e: Exception) {
+                                    println("Could not open PDF file: ${e.message}")
+                                }
+                                
+                                pendingBillViewModel.pendingBillState = pendingBillViewModel.pendingBillState.copy(
+                                    successMessage = "Report saved and opened successfully: ${file.name}"
+                                )
+                            }
+                        } catch (e: Exception) {
+                            pendingBillViewModel.pendingBillState = pendingBillViewModel.pendingBillState.copy(
+                                error = "Failed to generate report: ${e.message}"
+                            )
+                        }
+                    },
+                    modifier = Modifier.background(
+                        Color(0xFF10B981),
+                        RoundedCornerShape(8.dp)
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Print,
+                        contentDescription = "Print Report",
+                        tint = Color.White
+                    )
+                }
                 
                 IconButton(
                     onClick = { pendingBillViewModel.toggleAdvancedFilters() },
@@ -435,8 +484,9 @@ fun AdvancedFiltersSection(
                 }
             }
                         
-                        // Compact filters row: Search, From, To, Sort Field, Sort Direction
+                        // Compact filters row: Search, From, To, Sort Field, Sort Direction, Status Filter
                         var showSortFieldDropdown by remember { mutableStateOf(false) }
+                        var showStatusDropdown by remember { mutableStateOf(false) }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -582,6 +632,54 @@ fun AdvancedFiltersSection(
                                         if (pendingBillState.sortDirection == SortDirection.ASCENDING) "Asc" else "Desc",
                                         color = Color.White
                                     )
+                                }
+                            }
+                            
+                            // Status Filter
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedButton(
+                                    onClick = { showStatusDropdown = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        backgroundColor = Color(0xFF111827),
+                                        contentColor = Color(0xFFF9FAFB)
+                                    )
+                                ) {
+                                    Text(
+                                        pendingBillState.filterStatus?.let { 
+                                            it.name.replace("_", " ") 
+                                        } ?: "All Status",
+                                        color = Color(0xFFF9FAFB)
+                                    )
+                                    Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = "Status Filter",
+                                        tint = Color(0xFF9CA3AF)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showStatusDropdown,
+                                    onDismissRequest = { showStatusDropdown = false },
+                                    modifier = Modifier.background(Color(0xFF1F2937))
+                                ) {
+                                    DropdownMenuItem(
+                                        onClick = {
+                                            pendingBillViewModel.updateStatusFilter(null)
+                                            showStatusDropdown = false
+                                        }
+                                    ) {
+                                        Text("All Status", color = Color.White)
+                                    }
+                                    PendingBillStatus.values().forEach { status ->
+                                        DropdownMenuItem(
+                                            onClick = {
+                                                pendingBillViewModel.updateStatusFilter(status)
+                                                showStatusDropdown = false
+                                            }
+                                        ) {
+                                            Text(status.name.replace("_", " "), color = Color.White)
+                                        }
+                                    }
                                 }
                             }
                         }

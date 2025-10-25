@@ -56,7 +56,11 @@ import com.humblecoders.plantmanagement.data.Purchase
 import com.humblecoders.plantmanagement.data.Sale
 import com.humblecoders.plantmanagement.data.SaleStatus
 import com.humblecoders.plantmanagement.ui.components.DatePicker
+import com.humblecoders.plantmanagement.ui.components.CashOutDialog
+import com.humblecoders.plantmanagement.ui.components.CashInRevenueDialog
+import com.humblecoders.plantmanagement.ui.components.CashInOutDifferenceDialog
 import com.humblecoders.plantmanagement.viewmodels.CashTransactionViewModel
+import com.humblecoders.plantmanagement.viewmodels.EntityViewModel
 import com.humblecoders.plantmanagement.viewmodels.PurchaseViewModel
 import com.humblecoders.plantmanagement.viewmodels.SaleViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -73,6 +77,7 @@ fun CustomerDetailScreen(
     saleViewModel: SaleViewModel,
     purchaseViewModel: PurchaseViewModel,
     cashTransactionViewModel: CashTransactionViewModel,
+    entityViewModel: EntityViewModel,
     onBack: () -> Unit
 ) {
     val saleState = saleViewModel.saleState
@@ -91,6 +96,11 @@ fun CustomerDetailScreen(
     // Loading state management
     var isRefreshing by remember { mutableStateOf(false) }
     var lastRefreshTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    
+    // Dialog state variables
+    var showCashOutDialog by remember { mutableStateOf(false) }
+    var showCashInRevenueDialog by remember { mutableStateOf(false) }
+    var showDifferenceDialog by remember { mutableStateOf(false) }
     
     // Calculate financial summaries
     val financialSummary = remember(customer.id, saleState.sales, purchaseState.purchases, cashTransactionState.transactions) {
@@ -225,6 +235,47 @@ fun CustomerDetailScreen(
             }
         }
         
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Quick Action Buttons for Cash Dialogs
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Button(
+                onClick = { showCashOutDialog = true },
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = Color(0xFFEF4444),
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Cash Out (Purchase)", fontSize = 14.sp)
+            }
+            
+            Button(
+                onClick = { showCashInRevenueDialog = true },
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = Color(0xFF10B981),
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Cash In (Sales)", fontSize = 14.sp)
+            }
+            
+            Button(
+                onClick = { showDifferenceDialog = true },
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = Color(0xFF06B6D4),
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Difference", fontSize = 14.sp)
+            }
+        }
+        
         Spacer(modifier = Modifier.height(24.dp))
         
         // Customer Information Card
@@ -307,6 +358,36 @@ fun CustomerDetailScreen(
             filterDateTo = filterDateTo
         )
         }
+    }
+    
+    // Cash Out Dialog (from Purchase Module)
+    if (showCashOutDialog) {
+        CashOutDialog(
+            purchaseViewModel = purchaseViewModel,
+            entityViewModel = entityViewModel,
+            onDismiss = { showCashOutDialog = false },
+            preselectedCustomer = customer
+        )
+    }
+    
+    // Cash In Revenue Dialog (from Sales Module)
+    if (showCashInRevenueDialog) {
+        CashInRevenueDialog(
+            saleViewModel = saleViewModel,
+            entityViewModel = entityViewModel,
+            onDismiss = { showCashInRevenueDialog = false },
+            preselectedCustomer = customer
+        )
+    }
+    
+    // Cash In/Out Difference Dialog (from Sales Module)
+    if (showDifferenceDialog) {
+        CashInOutDifferenceDialog(
+            saleViewModel = saleViewModel,
+            entityViewModel = entityViewModel,
+            onDismiss = { showDifferenceDialog = false },
+            preselectedCustomer = customer
+        )
     }
 }
 

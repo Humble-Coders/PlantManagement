@@ -32,9 +32,10 @@ import kotlinx.coroutines.launch
 fun CashInRevenueDialog(
     saleViewModel: SaleViewModel,
     entityViewModel: EntityViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    preselectedCustomer: Entity? = null
 ) {
-    var selectedEntity by remember { mutableStateOf<Entity?>(null) }
+    var selectedEntity by remember(preselectedCustomer) { mutableStateOf<Entity?>(preselectedCustomer) }
     var showEntityDropdown by remember { mutableStateOf(false) }
     var cashInAmount by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }

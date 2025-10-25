@@ -224,6 +224,29 @@ class HistoryViewModel(
         }
     }
 
+    fun getProductionTransactions(): List<HistoryTransaction> {
+        return getTransactionsByType(HistoryTransactionType.PRODUCTION)
+    }
+
+    fun getExpenseTransactions(): List<HistoryTransaction> {
+        return getTransactionsByType(HistoryTransactionType.EXPENSE)
+    }
+
+    fun getCashReportTransactions(): List<HistoryTransaction> {
+        return getFilteredTransactions().filter { 
+            it.transactionType == HistoryTransactionType.CASH_REPORT_IN ||
+            it.transactionType == HistoryTransactionType.CASH_REPORT_OUT
+        }
+    }
+
+    fun getCashReportInTransactions(): List<HistoryTransaction> {
+        return getTransactionsByType(HistoryTransactionType.CASH_REPORT_IN)
+    }
+
+    fun getCashReportOutTransactions(): List<HistoryTransaction> {
+        return getTransactionsByType(HistoryTransactionType.CASH_REPORT_OUT)
+    }
+
     // Debug method to see all transactions
     fun getAllTransactions(): List<HistoryTransaction> {
         return historyState.dayHistory?.transactions ?: emptyList()

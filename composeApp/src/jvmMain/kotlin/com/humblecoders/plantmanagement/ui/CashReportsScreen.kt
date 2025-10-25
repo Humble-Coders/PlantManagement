@@ -154,8 +154,8 @@ fun CashReportsScreen(
                         Text("Categories")
                     }
 
-                    // User Balance Management Buttons (Admin only)
-                    if (userRole == com.humblecoders.plantmanagement.data.UserRole.ADMIN) {
+                    // User Balance Management Buttons (Available to both Admin and Accountant with USER role)
+                    if (userRole == com.humblecoders.plantmanagement.data.UserRole.ADMIN || userRole == com.humblecoders.plantmanagement.data.UserRole.USER) {
                         Button(
                             onClick = { showTransferBalanceDialog = true },
                             colors = ButtonDefaults.buttonColors(
@@ -1486,7 +1486,7 @@ private fun UserBalanceCard(
                     text = if (userRole == com.humblecoders.plantmanagement.data.UserRole.ADMIN) {
                         "Admin can transfer balance to/from this shared accountant balance"
                     } else {
-                        "Accountants can perform cash out transactions from this balance"
+                        "Accountants can perform transfers and cash out transactions from this balance"
                     },
                     color = Color(0xFF9CA3AF),
                     fontSize = 12.sp

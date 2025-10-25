@@ -33,9 +33,10 @@ import kotlinx.coroutines.launch
 fun CashInOutDifferenceDialog(
     saleViewModel: SaleViewModel,
     entityViewModel: EntityViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    preselectedCustomer: Entity? = null
 ) {
-    var selectedEntity by remember { mutableStateOf<Entity?>(null) }
+    var selectedEntity by remember(preselectedCustomer) { mutableStateOf<Entity?>(preselectedCustomer) }
     var showEntityDropdown by remember { mutableStateOf(false) }
     var transactionType by remember { mutableStateOf(DifferenceTransactionType.CASH_IN) }
     var amount by remember { mutableStateOf("") }

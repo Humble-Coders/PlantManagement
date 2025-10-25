@@ -95,6 +95,7 @@ fun MainScreen(
                         saleViewModel = saleViewModel,
                         purchaseViewModel = purchaseViewModel,
                         cashTransactionViewModel = cashTransactionViewModel,
+                        entityViewModel = entityViewModel,
                         onBack = { selectedCustomer = null }
                     )
                 }

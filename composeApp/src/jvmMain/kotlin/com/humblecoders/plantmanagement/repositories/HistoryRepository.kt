@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class HistoryRepository(
@@ -30,6 +31,9 @@ class HistoryRepository(
     private fun getCashOutCollection() = firestore.collection("cash_out")
     private fun getCashInRevenueCollection() = firestore.collection("cash_in_revenue")
     private fun getCashInOutDifferenceCollection() = firestore.collection("cash_in_out_difference")
+    private fun getProductionCollection() = firestore.collection("production_records")
+    private fun getExpensesCollection() = firestore.collection("expenses")
+    private fun getCashReportCollection() = firestore.collection("cashReports")
 
     /**
      * Initialize the cache and set up real-time listeners
@@ -85,6 +89,18 @@ class HistoryRepository(
             // Get all cash in/out difference
             val cashInOutDifference = getAllCashInOutDifference()
             transactions.addAll(cashInOutDifference.map { convertCashInOutDifferenceToHistoryTransaction(it) })
+            
+            // Get all production records
+            val productionRecords = getAllProductionRecords()
+            transactions.addAll(productionRecords.map { convertProductionRecordToHistoryTransaction(it) })
+            
+            // Get all expenses
+            val expenses = getAllExpenses()
+            transactions.addAll(expenses.map { convertExpenseToHistoryTransaction(it) })
+            
+            // Get all cash reports
+            val cashReports = getAllCashReports()
+            transactions.addAll(cashReports.map { convertCashReportToHistoryTransaction(it) })
             
             // Update cache
             _allTransactions.value = transactions
@@ -154,6 +170,33 @@ class HistoryRepository(
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) return@addSnapshotListener
                     snapshot?.let { refreshCashInOutDifferenceData(it.documents) }
+                }
+        )
+        
+        // Production records listener
+        listeners.add(
+            getProductionCollection()
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    snapshot?.let { refreshProductionData(it.documents) }
+                }
+        )
+        
+        // Expenses listener
+        listeners.add(
+            getExpensesCollection()
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    snapshot?.let { refreshExpensesData(it.documents) }
+                }
+        )
+        
+        // Cash reports listener
+        listeners.add(
+            getCashReportCollection()
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    snapshot?.let { refreshCashReportsData(it.documents) }
                 }
         )
     }
@@ -259,6 +302,42 @@ class HistoryRepository(
             }
         }
         updateCacheWithNewData(cashInOutDifference.map { convertCashInOutDifferenceToHistoryTransaction(it) })
+    }
+
+    private fun refreshProductionData(documents: List<com.google.cloud.firestore.DocumentSnapshot>) {
+        val productionRecords = documents.mapNotNull { doc ->
+            try {
+                val productionRecord = doc.toObject(ProductionRecord::class.java)
+                productionRecord?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        updateCacheWithNewData(productionRecords.map { convertProductionRecordToHistoryTransaction(it) })
+    }
+
+    private fun refreshExpensesData(documents: List<com.google.cloud.firestore.DocumentSnapshot>) {
+        val expenses = documents.mapNotNull { doc ->
+            try {
+                val expense = doc.toObject(Expense::class.java)
+                expense?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        updateCacheWithNewData(expenses.map { convertExpenseToHistoryTransaction(it) })
+    }
+
+    private fun refreshCashReportsData(documents: List<com.google.cloud.firestore.DocumentSnapshot>) {
+        val cashReports = documents.mapNotNull { doc ->
+            try {
+                val cashReport = doc.toObject(CashReport::class.java)
+                cashReport?.copy(id = doc.id)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        updateCacheWithNewData(cashReports.map { convertCashReportToHistoryTransaction(it) })
     }
 
     private fun updateCacheWithNewData(newTransactions: List<HistoryTransaction>) {
@@ -400,6 +479,63 @@ class HistoryRepository(
         }
     }
 
+    private suspend fun getAllProductionRecords(): List<ProductionRecord> {
+        return try {
+            val snapshot = getProductionCollection()
+                .get()
+                .get()
+            
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    val productionRecord = doc.toObject(ProductionRecord::class.java)
+                    productionRecord?.copy(id = doc.id)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun getAllExpenses(): List<Expense> {
+        return try {
+            val snapshot = getExpensesCollection()
+                .get()
+                .get()
+            
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    val expense = doc.toObject(Expense::class.java)
+                    expense?.copy(id = doc.id)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun getAllCashReports(): List<CashReport> {
+        return try {
+            val snapshot = getCashReportCollection()
+                .get()
+                .get()
+            
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    val cashReport = doc.toObject(CashReport::class.java)
+                    cashReport?.copy(id = doc.id)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     /**
      * Filter transactions by date in the app (not on Firebase)
      * Uses the same logic as CustomerDetailScreen
@@ -420,6 +556,22 @@ class HistoryRepository(
                     }
                     HistoryTransactionType.PURCHASE -> {
                         // Parse purchaseDate (yyyy-mm-dd format)
+                        try {
+                            parseDate(transaction.date)
+                        } catch (e: Exception) {
+                            LocalDate.now()
+                        }
+                    }
+                    HistoryTransactionType.PRODUCTION -> {
+                        // For production records, parse the date field (already converted to yyyy-mm-dd format)
+                        try {
+                            parseDate(transaction.date)
+                        } catch (e: Exception) {
+                            LocalDate.now()
+                        }
+                    }
+                    HistoryTransactionType.EXPENSE, HistoryTransactionType.CASH_REPORT_IN, HistoryTransactionType.CASH_REPORT_OUT -> {
+                        // For expense and cash report records, parse the date field (already converted to yyyy-mm-dd format)
                         try {
                             parseDate(transaction.date)
                         } catch (e: Exception) {
@@ -577,6 +729,72 @@ class HistoryRepository(
         )
     }
 
+    private fun convertProductionRecordToHistoryTransaction(productionRecord: ProductionRecord): HistoryTransaction {
+        return HistoryTransaction(
+            id = productionRecord.id,
+            transactionType = HistoryTransactionType.PRODUCTION,
+            date = productionRecord.createdAt?.let { timestamp ->
+                // Convert timestamp to LocalDate using system timezone
+                val instant = java.time.Instant.ofEpochSecond(timestamp.seconds, timestamp.nanos.toLong())
+                val localDate = instant.atZone(ZoneId.systemDefault()).toLocalDate()
+                localDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            } ?: "",
+            customerId = "",
+            customerName = productionRecord.supervisorName,
+            amount = productionRecord.quantityProduced,
+            description = "Production - Batch #${productionRecord.batchNumber}",
+            status = "Completed",
+            createdAt = productionRecord.createdAt,
+            originalData = productionRecord
+        )
+    }
+
+    private fun convertExpenseToHistoryTransaction(expense: Expense): HistoryTransaction {
+        return HistoryTransaction(
+            id = expense.id,
+            transactionType = HistoryTransactionType.EXPENSE,
+            date = expense.date?.let { timestamp ->
+                // Convert timestamp to LocalDate using system timezone
+                val instant = java.time.Instant.ofEpochSecond(timestamp.seconds, timestamp.nanos.toLong())
+                val localDate = instant.atZone(ZoneId.systemDefault()).toLocalDate()
+                localDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            } ?: "",
+            customerId = "",
+            customerName = "",
+            amount = expense.amount,
+            description = "Expense - ${expense.notes.ifEmpty { "No description" }}",
+            status = "Completed",
+            createdAt = expense.createdAt,
+            originalData = expense
+        )
+    }
+
+    private fun convertCashReportToHistoryTransaction(cashReport: CashReport): HistoryTransaction {
+        val transactionType = if (cashReport.transactionType == CashReportType.CASH_IN) {
+            HistoryTransactionType.CASH_REPORT_IN
+        } else {
+            HistoryTransactionType.CASH_REPORT_OUT
+        }
+
+        return HistoryTransaction(
+            id = cashReport.id,
+            transactionType = transactionType,
+            date = cashReport.date?.let { timestamp ->
+                // Convert timestamp to LocalDate using system timezone
+                val instant = java.time.Instant.ofEpochSecond(timestamp.seconds, timestamp.nanos.toLong())
+                val localDate = instant.atZone(ZoneId.systemDefault()).toLocalDate()
+                localDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            } ?: "",
+            customerId = "",
+            customerName = "",
+            amount = cashReport.amount,
+            description = "Cash Report ${if (transactionType == HistoryTransactionType.CASH_REPORT_IN) "In" else "Out"} - ${cashReport.notes.ifEmpty { "No description" }}",
+            status = "Completed",
+            createdAt = cashReport.createdAt,
+            originalData = cashReport
+        )
+    }
+
     private fun calculateDaySummary(transactions: List<HistoryTransaction>): DaySummary {
         var totalSales = 0.0
         var totalPurchases = 0.0
@@ -584,6 +802,10 @@ class HistoryRepository(
         var totalCashOut = 0.0
         var totalDifferenceIn = 0.0
         var totalDifferenceOut = 0.0
+        var totalProduction = 0.0
+        var totalExpenses = 0.0
+        var totalCashReportIn = 0.0
+        var totalCashReportOut = 0.0
 
         transactions.forEach { transaction ->
             when (transaction.transactionType) {
@@ -593,10 +815,14 @@ class HistoryRepository(
                 HistoryTransactionType.CASH_OUT_CUSTOMER, HistoryTransactionType.CASH_OUT_PURCHASES, HistoryTransactionType.CASH_OUT_GENERAL -> totalCashOut += transaction.amount
                 HistoryTransactionType.DIFFERENCE_CASH_IN -> totalDifferenceIn += transaction.amount
                 HistoryTransactionType.DIFFERENCE_CASH_OUT -> totalDifferenceOut += transaction.amount
+                HistoryTransactionType.PRODUCTION -> totalProduction += transaction.amount
+                HistoryTransactionType.EXPENSE -> totalExpenses += transaction.amount
+                HistoryTransactionType.CASH_REPORT_IN -> totalCashReportIn += transaction.amount
+                HistoryTransactionType.CASH_REPORT_OUT -> totalCashReportOut += transaction.amount
             }
         }
 
-        val netAmount = totalSales + totalCashIn + totalDifferenceIn - totalPurchases - totalCashOut - totalDifferenceOut
+        val netAmount = totalSales + totalCashIn + totalDifferenceIn + totalCashReportIn - totalPurchases - totalCashOut - totalDifferenceOut - totalExpenses - totalCashReportOut
 
         return DaySummary(
             totalSales = totalSales,
@@ -605,6 +831,10 @@ class HistoryRepository(
             totalCashOut = totalCashOut,
             totalDifferenceIn = totalDifferenceIn,
             totalDifferenceOut = totalDifferenceOut,
+            totalProduction = totalProduction,
+            totalExpenses = totalExpenses,
+            totalCashReportIn = totalCashReportIn,
+            totalCashReportOut = totalCashReportOut,
             netAmount = netAmount,
             transactionCount = transactions.size
         )

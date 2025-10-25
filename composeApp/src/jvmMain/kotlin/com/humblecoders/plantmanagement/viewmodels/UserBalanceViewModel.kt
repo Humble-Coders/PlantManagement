@@ -74,7 +74,7 @@ class UserBalanceViewModel(
     }
 
     /**
-     * Transfer balance to shared accountant balance (admin only)
+     * Transfer balance to shared accountant balance (available to both admin and accountant with USER role)
      */
     fun transferBalanceToSharedUserBalance(
         amount: Double,
@@ -83,14 +83,8 @@ class UserBalanceViewModel(
     ) {
         println("DEBUG: Current user: ${currentUser?.uid}, Role: ${currentUser?.role}")
         
-        // Temporarily allow all users to transfer for debugging
-        // TODO: Re-enable role check once user role is confirmed to be working
-        /*
-        if (currentUser?.role != UserRole.ADMIN) {
-            errorMessage = "Only admins can transfer balances. Current user role: ${currentUser?.role ?: "null"}"
-            return
-        }
-        */
+        // Allow both admin and accountant with USER role to transfer
+        // This allows accountants to manage their shared balance
 
         viewModelScope.launch {
             isLoading = true
@@ -114,11 +108,11 @@ class UserBalanceViewModel(
     }
 
     /**
-     * Get all balance transfers (admin only)
+     * Get all balance transfers (available to both admin and accountant with USER role)
      */
     fun loadAllBalanceTransfers() {
-        if (currentUser?.role != UserRole.ADMIN) {
-            errorMessage = "Only admins can view all balance transfers"
+        if (currentUser?.role != UserRole.ADMIN && currentUser?.role != UserRole.USER) {
+            errorMessage = "Only admins and accountants can view balance transfers"
             return
         }
 

@@ -30,7 +30,11 @@ enum class HistoryTransactionType {
     CASH_OUT_PURCHASES,
     DIFFERENCE_CASH_IN,
     DIFFERENCE_CASH_OUT,
-    CASH_OUT_GENERAL
+    CASH_OUT_GENERAL,
+    PRODUCTION,
+    EXPENSE,
+    CASH_REPORT_IN,
+    CASH_REPORT_OUT
 }
 
 /**
@@ -52,6 +56,10 @@ data class DaySummary(
     val totalCashOut: Double = 0.0,
     val totalDifferenceIn: Double = 0.0,
     val totalDifferenceOut: Double = 0.0,
+    val totalProduction: Double = 0.0,
+    val totalExpenses: Double = 0.0,
+    val totalCashReportIn: Double = 0.0,
+    val totalCashReportOut: Double = 0.0,
     val netAmount: Double = 0.0,
     val transactionCount: Int = 0
 )

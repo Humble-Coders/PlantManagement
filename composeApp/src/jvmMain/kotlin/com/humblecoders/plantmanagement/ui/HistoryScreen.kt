@@ -249,6 +249,47 @@ fun DaySummaryCards(daySummary: com.humblecoders.plantmanagement.data.DaySummary
                 showCurrency = false
             )
         }
+        
+        // Fifth row - Production and Expenses
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SummaryCard(
+                title = "Production",
+                amount = daySummary.totalProduction,
+                color = Color(0xFFF59E0B),
+                modifier = Modifier.weight(1f),
+                showCurrency = false
+            )
+            
+            SummaryCard(
+                title = "Expenses",
+                amount = daySummary.totalExpenses,
+                color = Color(0xFFEF4444),
+                modifier = Modifier.weight(1f)
+            )
+        }
+        
+        // Sixth row - Cash Report In and Out
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SummaryCard(
+                title = "Cash Report In",
+                amount = daySummary.totalCashReportIn,
+                color = Color(0xFF10B981),
+                modifier = Modifier.weight(1f)
+            )
+            
+            SummaryCard(
+                title = "Cash Report Out",
+                amount = daySummary.totalCashReportOut,
+                color = Color(0xFFEF4444),
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -378,6 +419,43 @@ fun TransactionListsSection(
                     icon = Icons.Default.Balance,
                     color = Color(0xFF8B5CF6)
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            
+            // Production Records
+            val productionRecords = historyViewModel.getProductionTransactions()
+            if (productionRecords.isNotEmpty()) {
+                TransactionTypeSection(
+                    title = "Production Records",
+                    transactions = productionRecords,
+                    icon = Icons.Default.Build,
+                    color = Color(0xFFF59E0B)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            
+            // Expense Records
+            val expenseRecords = historyViewModel.getExpenseTransactions()
+            if (expenseRecords.isNotEmpty()) {
+                TransactionTypeSection(
+                    title = "Expense Records",
+                    transactions = expenseRecords,
+                    icon = Icons.Default.Receipt,
+                    color = Color(0xFFEF4444)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            
+            // Cash Report Records
+            val cashReportRecords = historyViewModel.getCashReportTransactions()
+            if (cashReportRecords.isNotEmpty()) {
+                TransactionTypeSection(
+                    title = "Cash Report Records",
+                    transactions = cashReportRecords,
+                    icon = Icons.Default.AccountBalance,
+                    color = Color(0xFF3B82F6)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
             }
             
             // Show message if no transactions
@@ -667,12 +745,17 @@ private fun getTransactionTypeColor(type: HistoryTransactionType): Color {
         HistoryTransactionType.CASH_OUT_CUSTOMER, HistoryTransactionType.CASH_OUT_PURCHASES, HistoryTransactionType.CASH_OUT_GENERAL -> Color(0xFFEF4444)
         HistoryTransactionType.DIFFERENCE_CASH_IN -> Color(0xFF10B981)
         HistoryTransactionType.DIFFERENCE_CASH_OUT -> Color(0xFFEF4444)
+        HistoryTransactionType.PRODUCTION -> Color(0xFFF59E0B)
+        HistoryTransactionType.EXPENSE -> Color(0xFFEF4444)
+        HistoryTransactionType.CASH_REPORT_IN -> Color(0xFF10B981)
+        HistoryTransactionType.CASH_REPORT_OUT -> Color(0xFFEF4444)
     }
 }
 
 private fun getTransactionAmountColor(type: HistoryTransactionType): Color {
     return when (type) {
-        HistoryTransactionType.SALE, HistoryTransactionType.CASH_IN_CUSTOMER, HistoryTransactionType.CASH_IN_SALES, HistoryTransactionType.DIFFERENCE_CASH_IN -> Color(0xFF10B981)
-        HistoryTransactionType.PURCHASE, HistoryTransactionType.CASH_OUT_CUSTOMER, HistoryTransactionType.CASH_OUT_PURCHASES, HistoryTransactionType.CASH_OUT_GENERAL, HistoryTransactionType.DIFFERENCE_CASH_OUT -> Color(0xFFEF4444)
+        HistoryTransactionType.SALE, HistoryTransactionType.CASH_IN_CUSTOMER, HistoryTransactionType.CASH_IN_SALES, HistoryTransactionType.DIFFERENCE_CASH_IN, HistoryTransactionType.CASH_REPORT_IN -> Color(0xFF10B981)
+        HistoryTransactionType.PURCHASE, HistoryTransactionType.CASH_OUT_CUSTOMER, HistoryTransactionType.CASH_OUT_PURCHASES, HistoryTransactionType.CASH_OUT_GENERAL, HistoryTransactionType.DIFFERENCE_CASH_OUT, HistoryTransactionType.EXPENSE, HistoryTransactionType.CASH_REPORT_OUT -> Color(0xFFEF4444)
+        HistoryTransactionType.PRODUCTION -> Color(0xFFF59E0B)
     }
 }

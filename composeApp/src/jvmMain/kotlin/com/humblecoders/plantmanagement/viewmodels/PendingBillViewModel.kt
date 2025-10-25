@@ -7,6 +7,7 @@ import com.humblecoders.plantmanagement.data.PendingBill
 import com.humblecoders.plantmanagement.data.PendingBillStatus
 import com.humblecoders.plantmanagement.data.PendingBillClearanceRecord
 import com.humblecoders.plantmanagement.repositories.PendingBillRepository
+import com.humblecoders.plantmanagement.services.PendingBillPdfService
 import com.humblecoders.plantmanagement.viewmodels.SortDirection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,9 +48,9 @@ class PendingBillViewModel(
     private val pendingBillRepository: PendingBillRepository
 ) {
     var pendingBillState by mutableStateOf(PendingBillState())
-        private set
 
     private val viewModelScope = CoroutineScope(Dispatchers.Main)
+    private val pdfService = PendingBillPdfService()
 
     init {
         loadPendingBills()
@@ -352,5 +353,46 @@ class PendingBillViewModel(
      */
     fun clearSuccessMessage() {
         pendingBillState = pendingBillState.copy(successMessage = null)
+    }
+
+    /**
+     * Generate PDF report for filtered pending bills
+     */
+    fun generatePdfReport(): ByteArray {
+        val filteredBills = getFilteredAndSortedPendingBills()
+        val filterInfo = buildFilterInfo()
+        return pdfService.generatePendingBillReportPdf(filteredBills, filterInfo)
+    }
+
+    /**
+     * Build filter information string for PDF report
+     */
+    private fun buildFilterInfo(): String {
+        val filters = mutableListOf<String>()
+        
+        if (pendingBillState.searchQuery.isNotBlank()) {
+            filters.add("Search: \"${pendingBillState.searchQuery}\"")
+        }
+        
+        if (pendingBillState.filterDateFrom.isNotBlank() && pendingBillState.filterDateTo.isNotBlank()) {
+            filters.add("Date Range: ${pendingBillState.filterDateFrom} to ${pendingBillState.filterDateTo}")
+        } else if (pendingBillState.filterDateFrom.isNotBlank()) {
+            filters.add("From Date: ${pendingBillState.filterDateFrom}")
+        } else if (pendingBillState.filterDateTo.isNotBlank()) {
+            filters.add("To Date: ${pendingBillState.filterDateTo}")
+        }
+        
+        val filterStatus = pendingBillState.filterStatus
+        if (filterStatus != null) {
+            val statusText = when (filterStatus) {
+                PendingBillStatus.BILLED -> "Billed"
+                PendingBillStatus.PENDING_BILLED -> "Pending"
+            }
+            filters.add("Status: $statusText")
+        }
+        
+        filters.add("Sort: ${pendingBillState.sortBy.name.replace("_", " ")} ${pendingBillState.sortDirection.name}")
+        
+        return if (filters.isEmpty()) "No filters applied" else filters.joinToString(", ")
     }
 }
